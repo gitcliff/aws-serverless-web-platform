@@ -1,3 +1,3 @@
 locals {
-  domain_name = "cliff.com" 
+  domain_name = "cliffworld.link" 
 }
