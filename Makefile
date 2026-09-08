@@ -1,4 +1,4 @@
-.PHONY: init validate plan apply destroy test fmt lint security-scan
+.PHONY: init validate plan apply destroy test fmt fmt-check lint security-scan checkov install-dev install-hooks
 
 TF_DIR := terraform
 
@@ -29,5 +29,14 @@ lint:
 security-scan:
 	cd $(TF_DIR) && tfsec .
 
+checkov:
+	cd $(TF_DIR) && checkov -d .
+
 test:
-	pytest tests/ -v
+	.venv/bin/pytest tests/ -v
+
+install-dev:
+	python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+
+install-hooks:
+	pre-commit install
