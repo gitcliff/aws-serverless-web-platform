@@ -12,7 +12,7 @@ resource "aws_wafv2_web_acl" "waf" {
   rule {
     name     = "IPRateLimitRule"
     priority = 0 # Priority 0 ensures this evaluates BEFORE standard core rule sets
-    
+
     action {
       block {} # Drop traffic immediately if the threshold is crossed
     }
@@ -69,7 +69,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   aliases = [local.domain_name]
 
-  web_acl_id          = aws_wafv2_web_acl.waf.arn
+  web_acl_id = aws_wafv2_web_acl.waf.arn
 
   #Origin 1: S3 Bucket 
   origin {
@@ -84,10 +84,10 @@ resource "aws_cloudfront_distribution" "cdn" {
     origin_id   = "APIGateway-Backend"
 
     custom_origin_config {
-      http_port                = 80
-      https_port               = 443
-      origin_protocol_policy   = "https-only"
-      origin_ssl_protocols     = ["TLSv1.2"]
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
 
@@ -98,7 +98,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     error_caching_min_ttl = 10
   }
 
-   custom_error_response {
+  custom_error_response {
     error_code            = 404
     response_code         = 200
     response_page_path    = "/index.html"
@@ -106,9 +106,9 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   default_cache_behavior {
-    allowed_methods  = ["GET", "HEAD"]
-    cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "S3-${aws_s3_bucket.first_bucket.id}"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "S3-${aws_s3_bucket.first_bucket.id}"
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_policy.id
 
     forwarded_values {
@@ -137,11 +137,11 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   # Ordered Cache Behavior (Routes /api/* to API Gateway; Cache Disabled for dynamic data)
   ordered_cache_behavior {
-    path_pattern           = "/api/*"
-    target_origin_id       = "APIGateway-Backend"
-    allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods         = ["GET", "HEAD"]
-    viewer_protocol_policy = "https-only"
+    path_pattern               = "/api/*"
+    target_origin_id           = "APIGateway-Backend"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods             = ["GET", "HEAD"]
+    viewer_protocol_policy     = "https-only"
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_policy.id
 
     forwarded_values {
@@ -166,16 +166,16 @@ resource "aws_cloudfront_distribution" "cdn" {
 
 # Custom Response Headers Policy for strict browser security enforcement
 resource "aws_cloudfront_response_headers_policy" "security_policy" {
-  name        = "cliff-advanced-security-headers-policy"
-  comment     = "Enforces strict CSP, HSTS, and CORS for the Serverless application"
+  name    = "cliff-advanced-security-headers-policy"
+  comment = "Enforces strict CSP, HSTS, and CORS for the Serverless application"
 
   # 1. HSTS Configuration: Forces browsers to interact ONLY via HTTPS
   security_headers_config {
     strict_transport_security {
-      override           = true
+      override                   = true
       access_control_max_age_sec = 31536000 # 1 Year in seconds
-      include_subdomains = true
-      preload            = true
+      include_subdomains         = true
+      preload                    = true
     }
 
     # Anti-Clickjacking
@@ -207,7 +207,7 @@ resource "aws_cloudfront_response_headers_policy" "security_policy" {
   # 3. CORS Configuration: Validates and locks cross-domain scripts
   cors_config {
     access_control_allow_credentials = true
-    origin_override = true
+    origin_override                  = true
 
     access_control_allow_origins {
       items = ["https://${local.domain_name}"] # Restricts script actions tightly to your official domain
@@ -233,9 +233,9 @@ resource "aws_cloudfront_response_headers_policy" "security_policy" {
     items {
       header   = "Permissions-Policy"
       override = true
-      
+
       # Strict production-grade baseline string: disabling hardware feature tracking completely
-      value    = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()"
+      value = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()"
     }
-}
+  }
 }
