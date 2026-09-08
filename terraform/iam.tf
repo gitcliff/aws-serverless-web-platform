@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 # Trust policy allowing Lambda to assume the execution role
 data "aws_iam_policy_document" "lambda_trust" {
   statement {
@@ -30,7 +32,7 @@ resource "aws_iam_policy" "lambda_policy" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:*:*:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*"
       },
       {
         Effect = "Allow"
@@ -39,7 +41,7 @@ resource "aws_iam_policy" "lambda_policy" {
           "dynamodb:PutItem",
           "dynamodb:UpdateItem"
         ]
-        Resource = "aws_dynamodb_table.visitor_counter.arn"
+        Resource = aws_dynamodb_table.visitor_counter.arn
       }
     ]
   })
