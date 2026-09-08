@@ -68,6 +68,17 @@ data "aws_iam_policy_document" "origin_bucket_policy" {
   }
 }
 
+# Encrypt website bucket contents at rest
+resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
+  bucket = aws_s3_bucket.first_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 # Upload website files to S3
 resource "aws_s3_object" "website_files" {
   for_each = fileset("${path.module}/frontend/www", "**/*")
