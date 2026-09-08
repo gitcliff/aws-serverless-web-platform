@@ -12,5 +12,14 @@
 crash.log
 crash.*.log
 
+# Lambda build artifacts
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # macOS
 .DS_Store
+CLAUDE.md
