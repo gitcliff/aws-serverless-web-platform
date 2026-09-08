@@ -3,7 +3,72 @@
 # ==============================================================================
 
 resource "aws_sns_topic" "alerts" {
-  name = "cliff-system-alerts-topic"
+  name              = "cliff-system-alerts-topic"
+  kms_master_key_id = "alias/aws/sns"
+}
+
+data "aws_iam_policy_document" "sns_topic_policy" {
+  statement {
+    sid    = "AllowAccountOwner"
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    actions = [
+      "sns:Publish",
+      "sns:Subscribe",
+      "sns:Receive",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+    ]
+    resources = [aws_sns_topic.alerts.arn]
+  }
+
+  statement {
+    sid    = "AllowCloudWatchPublish"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
+    sid    = "DenyNonHTTPS"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "alerts" {
+  arn    = aws_sns_topic.alerts.arn
+  policy = data.aws_iam_policy_document.sns_topic_policy.json
 }
 
 resource "aws_sns_topic_subscription" "email_sub" {

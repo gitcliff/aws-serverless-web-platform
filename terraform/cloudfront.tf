@@ -71,6 +71,12 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   web_acl_id = aws_wafv2_web_acl.waf.arn
 
+  logging_config {
+    bucket          = aws_s3_bucket.access_logs.bucket_domain_name
+    include_cookies = false
+    prefix          = "cloudfront/"
+  }
+
   #Origin 1: S3 Bucket 
   origin {
     domain_name              = aws_s3_bucket.first_bucket.bucket_regional_domain_name
