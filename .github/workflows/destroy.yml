@@ -1,0 +1,70 @@
+# Destroy — tears down ALL infrastructure permanently.
+#
+# Two safety gates:
+#   1. You must type "destroy" in the confirmation input field
+#   2. The "production" GitHub Environment requires a manual reviewer approval
+#      (configure reviewers: GitHub → Settings → Environments → production)
+#
+# How to trigger:
+#   GitHub UI → Actions → "Destroy Infrastructure" → Run workflow → type "destroy"
+
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "destroy" to confirm permanent teardown of all AWS resources'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: "~1.10"
+
+jobs:
+  destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    environment: production # Manual reviewer gate — must be approved before job starts
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_INPUT: "false"
+    steps:
+      # Validate confirmation via environment variable — never interpolate
+      # untrusted input directly into a shell script (prevents injection)
+      - name: Verify confirmation input
+        env:
+          CONFIRMATION: ${{ github.event.inputs.confirmation }}
+        run: |
+          if [[ "$CONFIRMATION" != "destroy" ]]; then
+            echo "Confirmation must be exactly 'destroy'. Got: '$CONFIRMATION'"
+            exit 1
+          fi
+          echo "Confirmation accepted — proceeding with destroy"
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: destroy-${{ github.sha }}
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269ef065 # v3.1.2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Destroy
+        working-directory: terraform
+        run: terraform destroy -auto-approve -no-color
