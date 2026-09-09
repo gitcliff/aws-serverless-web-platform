@@ -134,7 +134,7 @@ A major downside of serverless is tracing failures when you don't own the underl
 
 ---
 
-## 🚀 Key Technical Highlights for Hiring Managers
+## 🚀 Key Technical Highlights 
 *   **Infrastructure as Code (IaC):** 100% of this multi-tier ecosystem is fully declared, version-controlled, and testable using repeatable, modular HashiCorp Configuration Language (HCL).
 *   **Defensive Security Engineering:** Implements strict security perimeters (WAF rate-limiting, browser security envelopes, public access blockades, explicit least-privilege IAM roles) to shield critical components.
 *   **FinOps & Spend Optimization:** Leverages scale-to-zero compute runtimes and pay-per-request models to keep infrastructure expenses directly correlated with actual business traffic.
