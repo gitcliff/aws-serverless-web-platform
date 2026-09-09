@@ -1,6 +1,6 @@
 # PR Checks — runs on every pull request targeting main.
 #
-# Pipeline: unit tests → terraform lint → IaC security scan → terraform plan
+# Pipeline: unit + integration tests → terraform lint → IaC security scan → terraform plan
 # The plan output is posted as a PR comment so reviewers see infra changes.
 #
 # All third-party actions are pinned to full commit SHA to prevent supply-chain attacks.
@@ -29,9 +29,9 @@ env:
   TFLINT_VERSION: "v0.55.0"
 
 jobs:
-  # ── 1. Python unit tests ────────────────────────────────────────────────────
+  # ── 1. Python unit + integration tests ──────────────────────────────────────
   test:
-    name: Unit Tests
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

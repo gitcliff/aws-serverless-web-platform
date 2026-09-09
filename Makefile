@@ -1,6 +1,7 @@
 .PHONY: init validate plan apply destroy test fmt fmt-check lint security-scan checkov install-dev install-hooks
 
 TF_DIR := terraform
+ENV    ?= dev
 
 init:
 	cd $(TF_DIR) && terraform init
@@ -9,13 +10,13 @@ validate:
 	cd $(TF_DIR) && terraform validate
 
 plan:
-	cd $(TF_DIR) && terraform plan
+	cd $(TF_DIR) && terraform plan -var-file=environments/$(ENV).tfvars
 
 apply:
-	cd $(TF_DIR) && terraform apply
+	cd $(TF_DIR) && terraform apply -var-file=environments/$(ENV).tfvars
 
 destroy:
-	cd $(TF_DIR) && terraform destroy
+	cd $(TF_DIR) && terraform destroy -var-file=environments/$(ENV).tfvars
 
 fmt:
 	cd $(TF_DIR) && terraform fmt -recursive

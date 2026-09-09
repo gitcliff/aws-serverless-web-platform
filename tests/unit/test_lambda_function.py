@@ -1,5 +1,6 @@
 import importlib
 import json
+from unittest.mock import patch, MagicMock
 
 import boto3
 import pytest
@@ -77,3 +78,39 @@ def test_response_body_has_visitor_count(handler):
     body = json.loads(response["body"])
     assert "visitor_count" in body
     assert isinstance(body["visitor_count"], int)
+
+
+def test_dynamodb_error_returns_500(aws_env):
+    """When DynamoDB fails, Lambda returns 500 with a safe error message."""
+    with mock_aws():
+        import lambda_function
+
+        importlib.reload(lambda_function)
+
+        mock_table = MagicMock()
+        mock_table.update_item.side_effect = Exception("connection timeout")
+
+        with patch.object(lambda_function, "table", mock_table):
+            response = lambda_function.lambda_handler({}, None)
+
+    assert response["statusCode"] == 500
+    body = json.loads(response["body"])
+    assert body["error"] == "Internal server error"
+    assert "timeout" not in json.dumps(body)
+
+
+def test_error_response_includes_cors_headers(aws_env):
+    """Error responses must still include CORS headers for the browser to read them."""
+    with mock_aws():
+        import lambda_function
+
+        importlib.reload(lambda_function)
+
+        mock_table = MagicMock()
+        mock_table.update_item.side_effect = Exception("fail")
+
+        with patch.object(lambda_function, "table", mock_table):
+            response = lambda_function.lambda_handler({}, None)
+
+    assert response["headers"]["Access-Control-Allow-Origin"] == ALLOWED_ORIGIN
+    assert response["headers"]["Content-Type"] == "application/json"
