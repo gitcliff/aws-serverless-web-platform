@@ -30,11 +30,13 @@ resource "aws_apigatewayv2_stage" "prod" {
   }
 }
 
-# Integration with backend AWS Lambda function
+# Integration targets the `live` alias, not $LATEST, so blue/green traffic
+# shifts (aws_lambda_alias.live.function_version update) take effect without
+# touching API Gateway configuration.
 resource "aws_apigatewayv2_integration" "lambda_integration" {
   api_id                 = aws_apigatewayv2_api.http_api.id
   integration_type       = local.api_gateway_integration_type
-  integration_uri        = aws_lambda_function.backend_logic.arn
+  integration_uri        = aws_lambda_alias.live.invoke_arn
   payload_format_version = local.api_gateway_payload_format_version
 }
 
@@ -45,11 +47,12 @@ resource "aws_apigatewayv2_route" "api_route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
 
-# Trust statement enabling API Gateway execution calls to Lambda
+# Grant API Gateway invoke rights on the alias specifically (not on $LATEST)
 resource "aws_lambda_permission" "api_gw_permission" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = local.api_gateway_lambda_permission_action
   function_name = aws_lambda_function.backend_logic.function_name
+  qualifier     = aws_lambda_alias.live.name
   principal     = local.api_gateway_lambda_permission_principal
   source_arn    = "${aws_apigatewayv2_api.http_api.arn}/*/*"
 }

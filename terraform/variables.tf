@@ -80,6 +80,11 @@ variable "lambda_runtime" {
 variable "alert_email" {
   type    = string
   default = "gitacliff48@gmail.com"
+}
 
+variable "backup_retention_days" {
+  description = "Number of days to retain DynamoDB backups (7 dev, 14 staging, 30 prod)"
+  type        = number
+  default     = 7
 }
 

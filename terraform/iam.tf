@@ -13,7 +13,7 @@ data "aws_iam_policy_document" "lambda_trust" {
 
 # Lambda Execution Role
 resource "aws_iam_role" "lambda_role" {
-  name                 = var.lambda_execution_role
+  name                 = "${var.environment}-${var.lambda_execution_role}"
   assume_role_policy   = data.aws_iam_policy_document.lambda_trust.json
   permissions_boundary = aws_iam_policy.lambda_permissions_boundary.arn
 }
@@ -27,7 +27,7 @@ data "aws_iam_policy_document" "lambda_permissions" {
       "logs:CreateLogStream",
       "logs:PutLogEvents",
     ]
-    resources = ["arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*"]
+    resources = ["arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.environment}-${var.lambda_function_name}:*"]
   }
 
   statement {
@@ -39,10 +39,23 @@ data "aws_iam_policy_document" "lambda_permissions" {
     ]
     resources = [aws_dynamodb_table.visitor_counter.arn]
   }
+
+  # Required for Lambda active X-Ray tracing
+  statement {
+    effect = "Allow"
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+      "xray:GetSamplingRules",
+      "xray:GetSamplingTargets",
+      "xray:GetSamplingStatisticSummaries",
+    ]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_policy" "lambda_policy" {
-  name        = var.lambda_cloudwatch_dynameDB_policy_name
+  name        = "${var.environment}-${var.lambda_cloudwatch_dynameDB_policy_name}"
   description = "Allows Lambda to write to CloudWatch Logs and query/update DynamoDB."
   policy      = data.aws_iam_policy_document.lambda_permissions.json
 }
