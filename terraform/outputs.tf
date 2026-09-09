@@ -10,7 +10,11 @@ output "application_url" {
 
 output "base_url" {
   description = "Base URL for API Gateway stage."
+  value       = aws_apigatewayv2_stage.prod.invoke_url
+}
 
-  value = aws_apigatewayv2_stage.prod.invoke_url
+output "cloudfront_distribution_id" {
+  value       = aws_cloudfront_distribution.cdn.id
+  description = "CloudFront distribution ID — used by CI/CD to issue cache invalidations after deploy."
 }
 

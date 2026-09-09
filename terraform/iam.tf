@@ -13,8 +13,9 @@ data "aws_iam_policy_document" "lambda_trust" {
 
 # Lambda Execution Role
 resource "aws_iam_role" "lambda_role" {
-  name               = var.lambda_execution_role
-  assume_role_policy = data.aws_iam_policy_document.lambda_trust.json
+  name                 = var.lambda_execution_role
+  assume_role_policy   = data.aws_iam_policy_document.lambda_trust.json
+  permissions_boundary = aws_iam_policy.lambda_permissions_boundary.arn
 }
 
 # Custom policy for CloudWatch Logging and DynamoDB write privileges
