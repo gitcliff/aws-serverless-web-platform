@@ -1,16 +1,7 @@
-terraform {
-  backend "s3" {
-    bucket         = "cliff-terraform-state-storage-bucket"
-    key            = "dev/terraform.tfstate"
-    region         = var.aws_region
-    use_lockfile  = true
-    encrypt        = true
-  }
-}
 # S3 bucket for static website hosting
 resource "aws_s3_bucket" "first_bucket" {
   bucket = var.bucket_name
-   tags = {
+  tags = {
     Name = var.bucket_tag
   }
 }
@@ -18,7 +9,7 @@ resource "aws_s3_bucket" "first_bucket" {
 # 2. Enable versioning for the bucket
 resource "aws_s3_bucket_versioning" "bucket_versioning" {
   bucket = aws_s3_bucket.first_bucket.id
-  
+
   versioning_configuration {
     status = "Enabled"
   }
@@ -45,7 +36,7 @@ resource "aws_cloudfront_origin_access_control" "oac" {
 
 
 resource "aws_s3_bucket_policy" "allow_access_from_another_account" {
-  bucket = aws_s3_bucket.first_bucket.id
+  bucket     = aws_s3_bucket.first_bucket.id
   depends_on = [aws_s3_bucket_public_access_block.block]
 
   policy = data.aws_iam_policy_document.origin_bucket_policy.json
@@ -73,6 +64,17 @@ data "aws_iam_policy_document" "origin_bucket_policy" {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
       values   = [aws_cloudfront_distribution.cdn.arn]
+    }
+  }
+}
+
+# Encrypt website bucket contents at rest
+resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
+  bucket = aws_s3_bucket.first_bucket.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
     }
   }
 }

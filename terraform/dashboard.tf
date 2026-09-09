@@ -11,12 +11,12 @@ resource "aws_cloudwatch_dashboard" "main_dashboard" {
         type   = "metric"
         x      = 0
         y      = 0
-        width  = 24 
+        width  = 24
         height = 6
         properties = {
           metrics = [
-            ["AWS/WAFV2", "BlockedRequests", "WebACL", aws_wafv2_web_acl.waf.name, "Region", "us-east-1", { "stat": "Sum", "label": "Blocked Bad Requests / DDoS Fits" }],
-            [".", "AllowedRequests", ".", ".", ".", ".", { "stat": "Sum", "label": "Allowed Good Requests" }]
+            ["AWS/WAFV2", "BlockedRequests", "WebACL", aws_wafv2_web_acl.waf.name, "Region", "us-east-1", { "stat" : "Sum", "label" : "Blocked Bad Requests / DDoS Fits" }],
+            [".", "AllowedRequests", ".", ".", ".", ".", { "stat" : "Sum", "label" : "Allowed Good Requests" }]
           ]
           period  = 300
           view    = "timeSeries"
@@ -37,8 +37,8 @@ resource "aws_cloudwatch_dashboard" "main_dashboard" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/ApiGateway", "5XXError", "ApiId", aws_apigatewayv2_api.http_api.id, { "stat": "Sum", "color": "#d62728", "label": "System Errors (5xx)" }],
-            [".", "4XXError", ".", ".", { "stat": "Sum", "color": "#ff7f0e", "label": "Client Errors (4xx)" }]
+            ["AWS/ApiGateway", "5XXError", "ApiId", aws_apigatewayv2_api.http_api.id, { "stat" : "Sum", "color" : "#d62728", "label" : "System Errors (5xx)" }],
+            [".", "4XXError", ".", ".", { "stat" : "Sum", "color" : "#ff7f0e", "label" : "Client Errors (4xx)" }]
           ]
           period = 300
           view   = "timeSeries"
@@ -58,8 +58,8 @@ resource "aws_cloudwatch_dashboard" "main_dashboard" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/ApiGateway", "Latency", "ApiId", aws_apigatewayv2_api.http_api.id, { "stat": "Average", "label": "Avg Latency (ms)" }],
-            [".", "IntegrationLatency", ".", ".", { "stat": "Average", "label": "Lambda Execution Latency (ms)" }]
+            ["AWS/ApiGateway", "Latency", "ApiId", aws_apigatewayv2_api.http_api.id, { "stat" : "Average", "label" : "Avg Latency (ms)" }],
+            [".", "IntegrationLatency", ".", ".", { "stat" : "Average", "label" : "Lambda Execution Latency (ms)" }]
           ]
           period = 60
           view   = "timeSeries"
@@ -93,9 +93,9 @@ resource "aws_cloudwatch_dashboard" "main_dashboard" {
         height = 6
         properties = {
           metrics = [
-            ["AWS/Lambda", "Invocations", "FunctionName", aws_lambda_function.backend_logic.function_name, { "stat": "Sum", "color": "#1f77b4", "label": "Successful Worker Runs" }],
-            [".", "Errors", ".", ".", { "stat": "Sum", "color": "#d62728", "label": "Code Crashes" }],
-            [".", "Throttles", ".", ".", { "stat": "Sum", "color": "#9467bd", "label": "Concurrency Throttles" }]
+            ["AWS/Lambda", "Invocations", "FunctionName", aws_lambda_function.backend_logic.function_name, { "stat" : "Sum", "color" : "#1f77b4", "label" : "Successful Worker Runs" }],
+            [".", "Errors", ".", ".", { "stat" : "Sum", "color" : "#d62728", "label" : "Code Crashes" }],
+            [".", "Throttles", ".", ".", { "stat" : "Sum", "color" : "#9467bd", "label" : "Concurrency Throttles" }]
           ]
           period = 300
           view   = "timeSeries"

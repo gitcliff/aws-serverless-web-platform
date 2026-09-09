@@ -29,7 +29,7 @@ def lambda_handler(event, context):
         "statusCode": 200,
         "headers": {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
+            "Access-Control-Allow-Origin": os.environ["ALLOWED_ORIGIN"]
         },
         "body": json.dumps({
             "visitor_count": visitor_count

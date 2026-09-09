@@ -7,4 +7,12 @@ resource "aws_dynamodb_table" "visitor_counter" {
     name = "counter_id"
     type = "S"
   }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
 }
