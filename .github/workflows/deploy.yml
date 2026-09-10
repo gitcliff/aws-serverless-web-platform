@@ -10,6 +10,16 @@ name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
   # push:
   #   branches: [main]
 
@@ -70,7 +80,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: terraform
-        run: terraform apply -auto-approve -no-color
+        run: terraform apply -auto-approve -no-color -var-file=environments/${{ inputs.environment }}.tfvars
 
       - name: Invalidate CloudFront cache
         working-directory: terraform

@@ -3,7 +3,7 @@
 # ==============================================================================
 
 resource "aws_sns_topic" "alerts" {
-  name              = "cliff-system-alerts-topic"
+  name              = "${var.environment}-system-alerts-topic"
   kms_master_key_id = "alias/aws/sns"
 }
 
@@ -83,7 +83,7 @@ resource "aws_sns_topic_subscription" "email_sub" {
 
 # Alarms if a high volume of requests are being blocked (Potential DDoS or Web Scraping)
 resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
-  alarm_name          = "cliff-waf-high-blocked-requests"
+  alarm_name          = "${var.environment}-waf-high-blocked-requests"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "BlockedRequests"
@@ -107,7 +107,7 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
 
 # Alarms if API experience high system failure rates (HTTP 5xx Server Errors)
 resource "aws_cloudwatch_metric_alarm" "api_gateway_errors" {
-  alarm_name          = "cliff-api-high-error-rate"
+  alarm_name          = "${var.environment}-api-high-error-rate"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "5XXError"
@@ -126,7 +126,7 @@ resource "aws_cloudwatch_metric_alarm" "api_gateway_errors" {
 
 # Alarms if end-to-end response time breaches acceptable latency envelopes
 resource "aws_cloudwatch_metric_alarm" "api_latency" {
-  alarm_name          = "api-high-latency"
+  alarm_name          = "${var.environment}-api-high-latency"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   metric_name         = "Latency"
@@ -149,7 +149,7 @@ resource "aws_cloudwatch_metric_alarm" "api_latency" {
 
 # Digital Tripwire: Monitors runtime execution failures
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
-  alarm_name          = "lambda-high-error-rate"
+  alarm_name          = "${var.environment}-lambda-high-error-rate"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "Errors"

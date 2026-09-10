@@ -81,12 +81,12 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
 
 # Upload website files to S3
 resource "aws_s3_object" "website_files" {
-  for_each = fileset("${path.module}/frontend/www", "**/*")
+  for_each = fileset("${path.module}/../frontend/www", "**/*")
 
   bucket = aws_s3_bucket.first_bucket.id
   key    = each.value
-  source = "${path.module}/frontend/www/${each.value}"
-  etag   = filemd5("${path.module}/frontend/www/${each.value}")
+  source = "${path.module}/../frontend/www/${each.value}"
+  etag   = filemd5("${path.module}/../frontend/www/${each.value}")
   content_type = lookup({
     "html" = "text/html",
     "css"  = "text/css",
