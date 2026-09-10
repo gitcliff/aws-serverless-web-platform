@@ -14,6 +14,7 @@ crash.*.log
 
 # Lambda build artifacts
 *.zip
+backend/package/
 
 # Python
 __pycache__/
