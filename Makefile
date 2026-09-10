@@ -1,4 +1,4 @@
-.PHONY: init validate plan apply destroy test fmt fmt-check lint security-scan checkov install-dev install-hooks
+.PHONY: init validate plan apply destroy test fmt fmt-check lint security-scan checkov install-dev install-hooks build-lambda
 
 TF_DIR := terraform
 ENV    ?= dev
@@ -41,3 +41,7 @@ install-dev:
 
 install-hooks:
 	pre-commit install
+
+build-lambda:
+	pip install -r backend/requirements.txt -t backend/package --quiet --upgrade
+	cp backend/lambda_function.py backend/package/

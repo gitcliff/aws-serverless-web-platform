@@ -89,7 +89,7 @@ resource "aws_cloudwatch_dashboard" "main_dashboard" {
         type   = "metric"
         x      = 0
         y      = 12
-        width  = 24 # Spans full screen width
+        width  = 12
         height = 6
         properties = {
           metrics = [
@@ -100,6 +100,102 @@ resource "aws_cloudwatch_dashboard" "main_dashboard" {
           period = 300
           view   = "timeSeries"
           title  = "⚙️ AWS Lambda Serverless Compute Worker Performance"
+          region = var.aws_region
+        }
+      },
+
+      # ==============================================================================
+      # WIDGET 5: COMPUTE LATENCY (LAMBDA P95 DURATION)
+      # ==============================================================================
+      {
+        type   = "metric"
+        x      = 12
+        y      = 12
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/Lambda", "Duration", "FunctionName", aws_lambda_function.backend_logic.function_name, { "stat" : "p95", "color" : "#ff7f0e", "label" : "p95 Duration (ms)" }],
+            [".", ".", ".", ".", { "stat" : "Average", "color" : "#1f77b4", "label" : "Avg Duration (ms)" }]
+          ]
+          period = 60
+          view   = "timeSeries"
+          title  = "⏱️ Lambda Execution Latency (p95 vs Average)"
+          region = var.aws_region
+          annotations = {
+            horizontal = [
+              { color = "#d62728", label = "Timeout (5s)", value = 5000 },
+              { color = "#ff7f0e", label = "SLO Warn (3s)", value = 3000 }
+            ]
+          }
+        }
+      },
+
+      # ==============================================================================
+      # WIDGET 6: DATA LAYER HEALTH (DYNAMODB LATENCY & ERRORS)
+      # ==============================================================================
+      {
+        type   = "metric"
+        x      = 0
+        y      = 18
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/DynamoDB", "SuccessfulRequestLatency", "TableName", aws_dynamodb_table.visitor_counter.name, "Operation", "UpdateItem", { "stat" : "Average", "color" : "#1f77b4", "label" : "UpdateItem Avg Latency (ms)" }],
+            [".", "SystemErrors", ".", ".", ".", ".", { "stat" : "Sum", "color" : "#d62728", "label" : "System Errors" }]
+          ]
+          period = 60
+          view   = "timeSeries"
+          title  = "🗄️ DynamoDB Data Layer Health"
+          region = var.aws_region
+          annotations = {
+            horizontal = [
+              { color = "#ff7f0e", label = "Latency Warn (50ms)", value = 50 }
+            ]
+          }
+        }
+      },
+
+      # ==============================================================================
+      # WIDGET 7: CDN LAYER HEALTH (CLOUDFRONT ERROR RATES)
+      # ==============================================================================
+      {
+        type   = "metric"
+        x      = 12
+        y      = 18
+        width  = 12
+        height = 6
+        properties = {
+          metrics = [
+            ["AWS/CloudFront", "5xxErrorRate", "DistributionId", aws_cloudfront_distribution.cdn.id, "Region", "Global", { "stat" : "Average", "color" : "#d62728", "label" : "5xx Error Rate (%)" }],
+            [".", "4xxErrorRate", ".", ".", ".", ".", { "stat" : "Average", "color" : "#ff7f0e", "label" : "4xx Error Rate (%)" }],
+            [".", "OriginLatency", ".", ".", ".", ".", { "stat" : "Average", "color" : "#1f77b4", "label" : "Origin Latency (ms)", "yAxis" : "right" }]
+          ]
+          period = 300
+          view   = "timeSeries"
+          title  = "🌐 CloudFront CDN Error Rates & Origin Latency"
+          region = var.aws_region
+        }
+      },
+
+      # ==============================================================================
+      # WIDGET 8: BUSINESS METRICS (VISITOR COUNT VIA EMF)
+      # ==============================================================================
+      {
+        type   = "metric"
+        x      = 0
+        y      = 24
+        width  = 24
+        height = 6
+        properties = {
+          metrics = [
+            ["VisitorCounter/Application", "VisitorCount", "Environment", var.environment, { "stat" : "Sum", "color" : "#2ca02c", "label" : "Visitor Increments" }],
+            [".", ".", ".", ".", { "stat" : "SampleCount", "color" : "#1f77b4", "label" : "API Requests", "yAxis" : "right" }]
+          ]
+          period = 300
+          view   = "timeSeries"
+          title  = "📈 Business Metrics — Visitor Counter (Custom EMF Namespace)"
           region = var.aws_region
         }
       }
