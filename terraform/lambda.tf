@@ -1,7 +1,29 @@
+# Installs runtime dependencies (aws-xray-sdk) into backend/package/ so the zip
+# includes everything Lambda needs. Triggers only when requirements.txt or
+# lambda_function.py change to avoid unnecessary rebuilds.
+resource "null_resource" "pip_install" {
+  triggers = {
+    requirements = filemd5("${path.module}/../backend/requirements.txt")
+    lambda_code  = filemd5("${path.module}/../backend/lambda_function.py")
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      pip install -r ${path.module}/../backend/requirements.txt \
+        -t ${path.module}/../backend/package \
+        --quiet \
+        --upgrade && \
+      cp ${path.module}/../backend/lambda_function.py \
+        ${path.module}/../backend/package/
+    EOT
+  }
+}
+
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "${path.module}/../backend/lambda_function.py"
+  source_dir  = "${path.module}/../backend/package"
   output_path = "${path.module}/../backend/lambda.zip"
+  depends_on  = [null_resource.pip_install]
 }
 
 resource "aws_lambda_function" "backend_logic" {

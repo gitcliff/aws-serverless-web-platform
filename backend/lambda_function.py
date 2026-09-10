@@ -1,9 +1,17 @@
 import json
 import logging
 import os
+import time
 
 import boto3
+from aws_xray_sdk.core import patch_all, xray_recorder
 from botocore.exceptions import ClientError
+
+# Patch boto3 so DynamoDB calls appear as subsegments in X-Ray traces.
+# LOG_ERROR prevents SegmentNotFoundException when running outside a Lambda
+# context (e.g., local tests), so the function degrades gracefully.
+xray_recorder.configure(context_missing="LOG_ERROR")
+patch_all()
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -16,6 +24,9 @@ def lambda_handler(event, context):
     # Structured log fields present on every entry — queryable in Logs Insights
     request_id = context.aws_request_id if context else "local"
     environment = os.environ.get("ENVIRONMENT", "unknown")
+    # Propagate X-Ray trace ID so Lambda logs, API GW logs, and X-Ray traces
+    # can all be correlated by a single ID in Logs Insights queries
+    trace_id = (event.get("headers") or {}).get("x-amzn-trace-id", "none")
 
     headers = {
         "Content-Type": "application/json",
@@ -36,7 +47,24 @@ def lambda_handler(event, context):
             "action": "increment_visitor_count",
             "visitor_count": visitor_count,
             "request_id": request_id,
+            "trace_id": trace_id,
             "environment": environment,
+        }))
+
+        # Emit Embedded Metric Format line — the CloudWatch Logs agent
+        # automatically extracts VisitorCount into the
+        # VisitorCounter/Application custom namespace with no extra SDK needed.
+        print(json.dumps({
+            "_aws": {
+                "Timestamp": int(time.time() * 1000),
+                "CloudWatchMetrics": [{
+                    "Namespace": "VisitorCounter/Application",
+                    "Dimensions": [["Environment"]],
+                    "Metrics": [{"Name": "VisitorCount", "Unit": "Count"}],
+                }],
+            },
+            "Environment": environment,
+            "VisitorCount": visitor_count,
         }))
 
         return {
@@ -51,6 +79,7 @@ def lambda_handler(event, context):
             "error": e.response["Error"]["Code"],
             "message": e.response["Error"]["Message"],
             "request_id": request_id,
+            "trace_id": trace_id,
             "environment": environment,
         }))
         return {
@@ -65,6 +94,7 @@ def lambda_handler(event, context):
             "error": type(e).__name__,
             "message": str(e),
             "request_id": request_id,
+            "trace_id": trace_id,
             "environment": environment,
         }))
         return {
