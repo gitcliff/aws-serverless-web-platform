@@ -133,7 +133,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     max_ttl     = 86400
   }
 
-  price_class = "PriceClass_100"
+  price_class = "PriceClass_100" #controls which CloudFront edge locations are used.
 
   restrictions {
     geo_restriction {
@@ -149,7 +149,8 @@ resource "aws_cloudfront_distribution" "cdn" {
     cached_methods             = ["GET", "HEAD"]
     viewer_protocol_policy     = "https-only"
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_policy.id
-
+    
+    # Tell CloudFront what information should be passed to API Gateway.
     forwarded_values {
       query_string = true
       headers      = ["Authorization", "Origin"]
