@@ -55,7 +55,7 @@ data "aws_iam_policy_document" "lambda_permissions" {
 }
 
 resource "aws_iam_policy" "lambda_policy" {
-  name        = "${var.environment}-${var.lambda_cloudwatch_dynameDB_policy_name}"
+  name        = "${var.environment}-${var.lambda_cloudwatch_dynamoDB_policy_name}"
   description = "Allows Lambda to write to CloudWatch Logs and query/update DynamoDB."
   policy      = data.aws_iam_policy_document.lambda_permissions.json
 }

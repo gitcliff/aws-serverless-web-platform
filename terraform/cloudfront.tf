@@ -86,7 +86,7 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   # Origin 2: API Gateway Backend
   origin {
-    domain_name = replace(aws_apigatewayv2_stage.prod.invoke_url, "https://", "")
+    domain_name = trimprefix(aws_apigatewayv2_stage.prod.invoke_url, "https://")
     origin_id   = "APIGateway-Backend"
 
     custom_origin_config {
@@ -207,7 +207,7 @@ resource "aws_cloudfront_response_headers_policy" "security_policy" {
     content_security_policy {
       override = true
       # Allow code/styles from self; allow scripts/connections strictly to your apex domain and subdomains
-      content_security_policy = "default-src 'self'; script-src 'self' 'identity'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://${local.domain_name} https://*.${local.domain_name}; frame-ancestors 'none'; object-src 'none';"
+      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://${local.domain_name} https://*.${local.domain_name}; frame-ancestors 'none'; object-src 'none';"
     }
   }
 

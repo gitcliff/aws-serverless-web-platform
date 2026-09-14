@@ -9,8 +9,9 @@ variable "environment" {
 }
 
 variable "bucket_name" {
-  type    = string
-  default = "static-website-bucket"
+  description = "Name of the S3 bucket for static website hosting (must be globally unique)"
+  type        = string
+  default     = "static-website-bucket"
 }
 
 variable "aws_region" {
@@ -43,7 +44,7 @@ variable "lambda_execution_role" {
   default     = "site-lambda-execution-role"
 }
 
-variable "lambda_cloudwatch_dynameDB_policy_name" {
+variable "lambda_cloudwatch_dynamoDB_policy_name" {
   description = "Lambda policy name for cloudwatch and dynamoDB"
   type        = string
   default     = "site-lambda-permissions-policy"
@@ -82,8 +83,8 @@ variable "lambda_runtime" {
 
 
 variable "alert_email" {
-  type    = string
-  default = "gitacliff48@gmail.com"
+  description = "Email address to receive CloudWatch alarm notifications"
+  type        = string
 }
 
 variable "backup_retention_days" {
