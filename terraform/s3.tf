@@ -44,7 +44,7 @@ resource "aws_s3_bucket_policy" "allow_access_from_another_account" {
 }
 data "aws_iam_policy_document" "origin_bucket_policy" {
   statement {
-    sid    = "AllowCloudFrontServicePrincipalReadWrite"
+    sid    = "AllowCloudFrontServicePrincipalRead"
     effect = "Allow"
 
     principals {
