@@ -69,7 +69,7 @@ data "aws_iam_policy_document" "lambda_boundary" {
       "logs:PutLogEvents",
     ]
     resources = [
-      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.environment}-${var.lambda_function_name}:*",
     ]
   }
 
@@ -189,8 +189,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "lambda:GetFunctionConcurrency",
     ]
     resources = [
-      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}",
-      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}:*",
+      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.environment}-${var.lambda_function_name}",
+      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.environment}-${var.lambda_function_name}:*",
     ]
   }
 
@@ -212,7 +212,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "dynamodb:UpdateTable",
     ]
     resources = [
-      "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/visitor-counter",
+      aws_dynamodb_table.visitor_counter.arn,
     ]
   }
 
@@ -251,8 +251,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "iam:UntagPolicy",
     ]
     resources = [
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/site-lambda-*",
-      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/site-lambda-*",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-${var.lambda_execution_role}",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.environment}-${var.lambda_cloudwatch_dynamoDB_policy_name}",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/lambda-permissions-boundary",
     ]
   }
@@ -361,9 +361,17 @@ data "aws_iam_policy_document" "github_actions_permissions" {
 
   # API Gateway
   statement {
-    sid     = "APIGateway"
-    effect  = "Allow"
-    actions = ["apigateway:*"]
+    sid    = "APIGateway"
+    effect = "Allow"
+    actions = [
+      "apigateway:GET",
+      "apigateway:POST",
+      "apigateway:PUT",
+      "apigateway:PATCH",
+      "apigateway:DELETE",
+      "apigateway:TagResource",
+      "apigateway:UntagResource",
+    ]
     resources = [
       "arn:aws:apigateway:${var.aws_region}::/apis",
       "arn:aws:apigateway:${var.aws_region}::/apis/*",
@@ -420,9 +428,9 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "logs:TagLogGroup",
     ]
     resources = [
-      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.environment}-${var.lambda_function_name}:*",
       "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/${var.api_gateway_name}:*",
-      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:*",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/synthetics/*",
     ]
   }
 
@@ -464,7 +472,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "sns:ListTagsForResource",
     ]
     resources = [
-      "arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cliff-system-alerts-topic",
+      aws_sns_topic.alerts.arn,
     ]
   }
 

@@ -55,73 +55,78 @@ resource "aws_s3_bucket_lifecycle_configuration" "canary_artifacts" {
   }
 }
 
+data "aws_iam_policy_document" "canary_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
 # IAM execution role — Synthetics runs the canary as a Lambda function
 resource "aws_iam_role" "canary" {
-  name = "${var.environment}-synthetics-canary-role"
+  name               = "${var.environment}-synthetics-canary-role"
+  assume_role_policy = data.aws_iam_policy_document.canary_trust.json
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
+data "aws_iam_policy_document" "canary_permissions" {
+  statement {
+    sid    = "ArtifactsBucket"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:GetBucketLocation",
+    ]
+    resources = [
+      aws_s3_bucket.canary_artifacts.arn,
+      "${aws_s3_bucket.canary_artifacts.arn}/*",
+    ]
+  }
+
+  statement {
+    sid    = "CloudWatchLogs"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+    ]
+    resources = ["arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/synthetics/*"]
+  }
+
+  statement {
+    sid       = "SyntheticsMetrics"
+    effect    = "Allow"
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["CloudWatchSynthetics"]
+    }
+  }
+
+  statement {
+    sid    = "XRayTracing"
+    effect = "Allow"
+    actions = [
+      "xray:PutTraceSegments",
+      "xray:GetSamplingRules",
+      "xray:GetSamplingTargets",
+      "xray:GetSamplingStatisticSummaries",
+    ]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "canary" {
-  name = "${var.environment}-synthetics-canary-policy"
-  role = aws_iam_role.canary.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ArtifactsBucket"
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject",
-          "s3:GetBucketLocation"
-        ]
-        Resource = [
-          aws_s3_bucket.canary_artifacts.arn,
-          "${aws_s3_bucket.canary_artifacts.arn}/*"
-        ]
-      },
-      {
-        Sid    = "CloudWatchLogs"
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/synthetics/*"
-      },
-      {
-        Sid      = "SyntheticsMetrics"
-        Effect   = "Allow"
-        Action   = ["cloudwatch:PutMetricData"]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "cloudwatch:namespace" = "CloudWatchSynthetics"
-          }
-        }
-      },
-      {
-        Sid    = "XRayTracing"
-        Effect = "Allow"
-        Action = [
-          "xray:PutTraceSegments",
-          "xray:GetSamplingRules",
-          "xray:GetSamplingTargets",
-          "xray:GetSamplingStatisticSummaries"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
+  name   = "${var.environment}-synthetics-canary-policy"
+  role   = aws_iam_role.canary.id
+  policy = data.aws_iam_policy_document.canary_permissions.json
 }
 
 # Package the canary script: zip must contain nodejs/node_modules/index.js
@@ -142,7 +147,7 @@ resource "aws_synthetics_canary" "api_health" {
   start_canary         = true
 
   schedule {
-    expression = "rate(5 minutes)"
+    expression = "rate(15 minutes)"
   }
 
   run_config {

@@ -97,7 +97,7 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
 
   dimensions = {
     WebACL = aws_wafv2_web_acl.waf.name
-    Region = "us-east-1"
+    Region = var.aws_region
   }
 }
 
