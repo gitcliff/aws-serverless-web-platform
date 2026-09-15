@@ -2,7 +2,7 @@
 # SYNTHETIC MONITORING — CloudWatch Synthetics Canary
 #
 # Runs a lightweight NodeJS health check against the public API endpoint every
-# 5 minutes. A SuccessPercent < 100 triggers the canary-failure alarm which
+# 15 minutes. A SuccessPercent < 100 triggers the canary-failure alarm which
 # pages the same SNS topic as all other operational alarms.
 # ==============================================================================
 
