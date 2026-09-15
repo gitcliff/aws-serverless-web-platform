@@ -149,7 +149,7 @@ resource "aws_cloudfront_distribution" "cdn" {
     cached_methods             = ["GET", "HEAD"]
     viewer_protocol_policy     = "https-only"
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_policy.id
-    
+
     # Tell CloudFront what information should be passed to API Gateway.
     forwarded_values {
       query_string = true
@@ -207,7 +207,8 @@ resource "aws_cloudfront_response_headers_policy" "security_policy" {
     content_security_policy {
       override = true
       # Allow code/styles from self; allow scripts/connections strictly to your apex domain and subdomains
-      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://${local.domain_name} https://*.${local.domain_name}; frame-ancestors 'none'; object-src 'none';"
+      #content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://${local.domain_name} https://*.${local.domain_name}; frame-ancestors 'none'; object-src 'none';"
+      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://${local.domain_name} https://*.${local.domain_name}; font-src 'self' data:; media-src 'self'"
     }
   }
 

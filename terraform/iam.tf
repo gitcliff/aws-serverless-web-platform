@@ -52,6 +52,20 @@ data "aws_iam_policy_document" "lambda_permissions" {
     ]
     resources = ["*"]
   }
+
+  # Required to send failed async invocations to the dead-letter queue
+  statement {
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.lambda_dlq.arn]
+  }
+
+  # Required to decrypt environment variables encrypted with the project CMK
+  statement {
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.project.arn]
+  }
 }
 
 resource "aws_iam_policy" "lambda_policy" {

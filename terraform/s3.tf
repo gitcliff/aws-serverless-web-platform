@@ -68,13 +68,34 @@ data "aws_iam_policy_document" "origin_bucket_policy" {
   }
 }
 
-# Encrypt website bucket contents at rest
+# Encrypt website bucket contents at rest with a customer-managed KMS key
 resource "aws_s3_bucket_server_side_encryption_configuration" "website" {
   bucket = aws_s3_bucket.first_bucket.id
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.project.arn
+    }
+    bucket_key_enabled = true # Reduces KMS API call cost by caching the data key
+  }
+}
+
+# Move noncurrent object versions to cheaper storage then expire them
+resource "aws_s3_bucket_lifecycle_configuration" "website" {
+  bucket = aws_s3_bucket.first_bucket.id
+
+  rule {
+    id     = "noncurrent-version-cleanup"
+    status = "Enabled"
+
+    noncurrent_version_transition {
+      noncurrent_days = 30
+      storage_class   = "STANDARD_IA"
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90
     }
   }
 }

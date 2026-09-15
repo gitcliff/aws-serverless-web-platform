@@ -104,11 +104,13 @@ resource "aws_s3_bucket_logging" "website" {
 # CloudWatch log group for API Gateway HTTP access logs
 resource "aws_cloudwatch_log_group" "api_gw_logs" {
   name              = "/aws/apigateway/${var.api_gateway_name}"
-  retention_in_days = 14
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.project.arn
 }
 
 # CloudWatch log group for Lambda — explicit retention prevents unbounded log growth
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${var.environment}-${var.lambda_function_name}"
-  retention_in_days = 14
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.project.arn
 }

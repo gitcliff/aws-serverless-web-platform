@@ -93,6 +93,20 @@ data "aws_iam_policy_document" "lambda_boundary" {
     ]
     resources = ["*"] # X-Ray does not support resource-level permissions
   }
+
+  statement {
+    sid       = "SQSDLQSend"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.lambda_dlq.arn]
+  }
+
+  statement {
+    sid       = "KMSDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.project.arn]
+  }
 }
 
 # ─── CI/CD permissions ────────────────────────────────────────────────────────
@@ -395,20 +409,29 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"] # ACM cert ARNs use random IDs
   }
 
-  # Route 53
+  # Route 53 — zone management scoped to the project hosted zone
   statement {
-    sid    = "Route53"
+    sid    = "Route53ZoneManagement"
     effect = "Allow"
     actions = [
       "route53:GetHostedZone",
-      "route53:ListHostedZones",
       "route53:ListResourceRecordSets",
       "route53:ChangeResourceRecordSets",
-      "route53:GetChange",
       "route53:ListTagsForResource",
       "route53:ChangeTagsForResource",
     ]
-    resources = ["*"] # Route 53 hosted zone ARN could be scoped if zone ID is known
+    resources = [aws_route53_zone.primary_zone.arn]
+  }
+
+  # ListHostedZones and GetChange do not support resource-level restrictions
+  statement {
+    sid    = "Route53Global"
+    effect = "Allow"
+    actions = [
+      "route53:ListHostedZones",
+      "route53:GetChange",
+    ]
+    resources = ["*"]
   }
 
   # CloudWatch Logs — scoped to project log groups
@@ -434,22 +457,49 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-  # CloudWatch Alarms and Dashboards
+  # CloudWatch Alarms — scoped to project alarms by environment prefix
   statement {
-    sid    = "CloudWatchMonitoring"
+    sid    = "CloudWatchAlarmsManage"
     effect = "Allow"
     actions = [
       "cloudwatch:PutMetricAlarm",
       "cloudwatch:DeleteAlarms",
-      "cloudwatch:DescribeAlarms",
       "cloudwatch:ListTagsForResource",
       "cloudwatch:TagResource",
       "cloudwatch:UntagResource",
+    ]
+    resources = [
+      "arn:aws:cloudwatch:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alarm:${var.environment}-*",
+    ]
+  }
+
+  # DescribeAlarms does not support resource-level restrictions
+  statement {
+    sid       = "CloudWatchAlarmsRead"
+    effect    = "Allow"
+    actions   = ["cloudwatch:DescribeAlarms"]
+    resources = ["*"]
+  }
+
+  # CloudWatch Dashboards — scoped to project dashboards by environment prefix
+  statement {
+    sid    = "CloudWatchDashboardsManage"
+    effect = "Allow"
+    actions = [
       "cloudwatch:PutDashboard",
       "cloudwatch:GetDashboard",
       "cloudwatch:DeleteDashboards",
-      "cloudwatch:ListDashboards",
     ]
+    resources = [
+      "arn:aws:cloudwatch::${data.aws_caller_identity.current.account_id}:dashboard/${var.environment}-*",
+    ]
+  }
+
+  # ListDashboards does not support resource-level restrictions
+  statement {
+    sid       = "CloudWatchDashboardsRead"
+    effect    = "Allow"
+    actions   = ["cloudwatch:ListDashboards"]
     resources = ["*"]
   }
 
@@ -476,11 +526,71 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-  # KMS — read-only (SNS uses the AWS-managed alias/aws/sns key)
+  # KMS — create/list operations require wildcard (no resource-level support)
   statement {
-    sid       = "KMS"
+    sid    = "KMSGlobalOps"
+    effect = "Allow"
+    actions = [
+      "kms:CreateKey",
+      "kms:ListAliases",
+      "kms:ListKeys",
+    ]
+    resources = ["*"]
+  }
+
+  # KMS — full lifecycle management of the project CMK
+  statement {
+    sid    = "KMSProjectKeyOps"
+    effect = "Allow"
+    actions = [
+      "kms:DescribeKey",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:PutKeyPolicy",
+      "kms:EnableKeyRotation",
+      "kms:ScheduleKeyDeletion",
+      "kms:CancelKeyDeletion",
+      "kms:UpdateKeyDescription",
+      "kms:ListResourceTags",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:GenerateDataKey",
+      "kms:GenerateDataKeyWithoutPlaintext",
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:ReEncrypt*",
+      "kms:CreateAlias",
+      "kms:DeleteAlias",
+      "kms:UpdateAlias",
+    ]
+    resources = [
+      aws_kms_key.project.arn,
+      "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/${var.environment}-project-key",
+    ]
+  }
+
+  # SQS — scoped to the Lambda dead-letter queue
+  statement {
+    sid    = "SQSLambdaDLQ"
+    effect = "Allow"
+    actions = [
+      "sqs:CreateQueue",
+      "sqs:DeleteQueue",
+      "sqs:GetQueueAttributes",
+      "sqs:SetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:TagQueue",
+      "sqs:UntagQueue",
+      "sqs:ListQueueTags",
+    ]
+    resources = [aws_sqs_queue.lambda_dlq.arn]
+  }
+
+  # ListQueues does not support resource-level restrictions
+  statement {
+    sid       = "SQSList"
     effect    = "Allow"
-    actions   = ["kms:DescribeKey", "kms:ListAliases"]
+    actions   = ["sqs:ListQueues"]
     resources = ["*"]
   }
 }
