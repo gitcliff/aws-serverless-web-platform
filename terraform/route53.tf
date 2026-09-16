@@ -6,6 +6,15 @@ resource "aws_route53domains_domain" "demo_domain" {
   domain_name = local.domain_name
   auto_renew  = false
 
+  # Point the domain at the Terraform-managed hosted zone so ACM DNS
+  # validation records are reachable via the authoritative name servers.
+  dynamic "name_server" {
+    for_each = aws_route53_zone.primary_zone.name_servers
+    content {
+      name = name_server.value
+    }
+  }
+
   admin_contact {
     address_line_1    = "101 Main Street"
     city              = "San Francisco"
@@ -31,9 +40,7 @@ resource "aws_route53domains_domain" "demo_domain" {
     first_name        = "Gita"
     last_name         = "cliff"
     organization_name = "HashiCorp"
-    phone_number      = "+256704567830"
-    state             = "CA"
-    zip_code          = "94105"
+    phone_number      = "+256.704567830"
   }
 
   tech_contact {
@@ -57,7 +64,7 @@ resource "aws_route53domains_domain" "demo_domain" {
 }
 
 resource "aws_route53_zone" "primary_zone" {
-  name    = aws_route53domains_domain.demo_domain.domain_name
+  name    = local.domain_name
   comment = "Managed by cliff"
 }
 

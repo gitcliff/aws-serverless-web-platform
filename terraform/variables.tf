@@ -9,9 +9,9 @@ variable "environment" {
 }
 
 variable "bucket_name" {
-  description = "Name of the S3 bucket for static website hosting (must be globally unique)"
+  description = "Name prefix for the S3 bucket for static website hosting (account ID is appended to ensure global uniqueness)"
   type        = string
-  default     = "static-website-bucket"
+  default     = "cliff-static-website"
 }
 
 variable "aws_region" {

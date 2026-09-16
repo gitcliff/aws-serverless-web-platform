@@ -86,7 +86,8 @@ resource "aws_cloudfront_distribution" "cdn" {
 
   # Origin 2: API Gateway Backend
   origin {
-    domain_name = trimprefix(aws_apigatewayv2_stage.prod.invoke_url, "https://")
+    domain_name = split("/", trimprefix(aws_apigatewayv2_stage.prod.invoke_url, "https://"))[0]
+    origin_path = "/${aws_apigatewayv2_stage.prod.name}"
     origin_id   = "APIGateway-Backend"
 
     custom_origin_config {
