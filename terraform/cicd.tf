@@ -697,7 +697,7 @@ data "aws_iam_policy_document" "github_actions_terraform_read" {
       "s3:GetBucketOwnershipControls",
       "s3:GetBucketPolicy",
       "s3:GetBucketPublicAccessBlock",
-      "s3:GetBucketReplication",
+      "s3:GetReplicationConfiguration",
       "s3:GetBucketVersioning",
       "s3:GetEncryptionConfiguration",
       "s3:GetLifecycleConfiguration",
