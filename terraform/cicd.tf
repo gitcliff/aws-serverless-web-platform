@@ -178,6 +178,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "${aws_s3_bucket.first_bucket.arn}/*",
       aws_s3_bucket.access_logs.arn,
       "${aws_s3_bucket.access_logs.arn}/*",
+      aws_s3_bucket.canary_artifacts.arn,
+      "${aws_s3_bucket.canary_artifacts.arn}/*",
     ]
   }
 
@@ -264,10 +266,10 @@ data "aws_iam_policy_document" "github_actions_permissions" {
 
 # ─── Policy 2 of 3: IAM + KMS ─────────────────────────────────────────────────
 data "aws_iam_policy_document" "github_actions_permissions_iam_kms" {
-  # IAM — scoped to Lambda execution role and its policies only
+  # IAM — scoped to project service roles and their policies only
   # Does NOT include github-actions-* to prevent self-escalation
   statement {
-    sid    = "IAMLambdaResources"
+    sid    = "IAMServiceRoles"
     effect = "Allow"
     actions = [
       "iam:CreateRole",
@@ -300,6 +302,8 @@ data "aws_iam_policy_document" "github_actions_permissions_iam_kms" {
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-${var.lambda_execution_role}",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-dynamodb-backup-role",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-synthetics-canary-role",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.environment}-${var.lambda_cloudwatch_dynamoDB_policy_name}",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/lambda-permissions-boundary",
     ]
@@ -543,6 +547,7 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
     effect = "Allow"
     actions = [
       "cloudwatch:PutMetricAlarm",
+      "cloudwatch:PutCompositeAlarm",
       "cloudwatch:DeleteAlarms",
       "cloudwatch:ListTagsForResource",
       "cloudwatch:TagResource",
@@ -604,6 +609,65 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
     resources = [
       aws_sns_topic.alerts.arn,
     ]
+  }
+
+  # Route 53 Domains — manage the registered domain
+  statement {
+    sid    = "Route53Domains"
+    effect = "Allow"
+    actions = [
+      "route53domains:GetDomainDetail",
+      "route53domains:GetOperationDetail",
+      "route53domains:UpdateDomainNameservers",
+      "route53domains:ListTagsForDomain",
+      "route53domains:UpdateTagsForDomain",
+      "route53domains:DeleteTagsForDomain",
+    ]
+    resources = ["*"] # Route 53 Domains does not support resource-level restrictions
+  }
+
+  # AWS Backup — vault, plan, and selection for DynamoDB
+  statement {
+    sid    = "Backup"
+    effect = "Allow"
+    actions = [
+      "backup:DescribeBackupVault",
+      "backup:CreateBackupVault",
+      "backup:DeleteBackupVault",
+      "backup:GetBackupPlan",
+      "backup:CreateBackupPlan",
+      "backup:UpdateBackupPlan",
+      "backup:DeleteBackupPlan",
+      "backup:GetBackupSelection",
+      "backup:CreateBackupSelection",
+      "backup:DeleteBackupSelection",
+      "backup:ListTags",
+      "backup:TagResource",
+      "backup:UntagResource",
+    ]
+    resources = [
+      "arn:aws:backup:${var.aws_region}:${data.aws_caller_identity.current.account_id}:backup-vault:${var.environment}-*",
+      "arn:aws:backup:${var.aws_region}:${data.aws_caller_identity.current.account_id}:backup-plan:*",
+    ]
+  }
+
+  # Synthetics — canary health checks
+  statement {
+    sid    = "Synthetics"
+    effect = "Allow"
+    actions = [
+      "synthetics:GetCanary",
+      "synthetics:CreateCanary",
+      "synthetics:UpdateCanary",
+      "synthetics:DeleteCanary",
+      "synthetics:StartCanary",
+      "synthetics:StopCanary",
+      "synthetics:DescribeCanaries",
+      "synthetics:ListTagsForResource",
+      "synthetics:TagResource",
+      "synthetics:UntagResource",
+    ]
+    resources = ["*"] # Synthetics does not support resource-level restrictions for most actions
   }
 }
 
