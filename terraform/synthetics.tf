@@ -46,7 +46,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "canary_artifacts" {
     status = "Enabled"
 
     expiration {
-      days = 30
+      days = 15
     }
 
     noncurrent_version_expiration {
@@ -168,7 +168,7 @@ resource "aws_synthetics_canary" "api_health" {
 resource "aws_cloudwatch_metric_alarm" "canary_failure" {
   alarm_name          = "${var.environment}-api-canary-failure"
   comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 1
+  evaluation_periods  = 1 # One failing evaluation is enough to trigger the alarm.
   metric_name         = "SuccessPercent"
   namespace           = "CloudWatchSynthetics"
   period              = 300

@@ -19,6 +19,15 @@ resource "null_resource" "pip_install" {
   }
 }
 
+# Dead-letter queue captures failed async Lambda invocations for debugging.
+# This function is invoked synchronously by API Gateway, so the DLQ only
+# fires if the function is ever called asynchronously (e.g., event-source mapping).
+resource "aws_sqs_queue" "lambda_dlq" {
+  name                      = "${var.environment}-lambda-dlq"
+  message_retention_seconds = 1209600 # 14 days (maximum)
+  kms_master_key_id         = "alias/aws/sqs"
+}
+
 data "archive_file" "lambda_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../backend/package"
@@ -34,6 +43,9 @@ resource "aws_lambda_function" "backend_logic" {
   runtime          = var.lambda_runtime
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
+  # Encrypt environment variables at rest with a customer-managed key
+  kms_key_arn = aws_kms_key.project.arn
+
   # publish = true creates a numbered version on every deploy; the `live`
   # alias below pins to the latest published version, enabling blue/green
   # traffic shifting and safe rollbacks without changing the API Gateway config.
@@ -46,6 +58,10 @@ resource "aws_lambda_function" "backend_logic" {
   # Kill execution quickly if code behaves unexpectedly
   timeout     = 5   # In seconds (Keep it under 10s for API endpoints)
   memory_size = 256 # Allocation limit in MB
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
 
   # Emit traces to AWS X-Ray for end-to-end latency visibility
   tracing_config {
