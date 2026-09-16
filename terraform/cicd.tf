@@ -37,11 +37,16 @@ data "aws_iam_policy_document" "github_actions_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Scope to this specific repo — no other GitHub repo can assume this role
+    # Scope to this specific repo — no other GitHub repo can assume this role.
+    # GitHub's OIDC sub claim now includes numeric IDs (e.g. owner@ID/repo@ID),
+    # so both the legacy and current formats must be accepted.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:gitcliff/aws-serverless-web-platform:*"]
+      values = [
+        "repo:gitcliff/aws-serverless-web-platform:*",
+        "repo:gitcliff@*/aws-serverless-web-platform@*:*",
+      ]
     }
   }
 }
