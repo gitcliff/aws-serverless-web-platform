@@ -172,6 +172,10 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:PutBucketCORS",
       "s3:GetBucketWebsite",
       "s3:PutBucketWebsite",
+      "s3:HeadObject",
+      "s3:GetBucketNotification",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketObjectLockConfiguration",
     ]
     resources = [
       aws_s3_bucket.first_bucket.arn,
@@ -333,11 +337,14 @@ data "aws_iam_policy_document" "github_actions_permissions_iam_kms" {
     sid    = "IAMOIDCProvider"
     effect = "Allow"
     actions = [
+      "iam:CreateOpenIDConnectProvider",
       "iam:GetOpenIDConnectProvider",
+      "iam:DeleteOpenIDConnectProvider",
       "iam:UpdateOpenIDConnectProviderThumbprint",
       "iam:AddClientIDToOpenIDConnectProvider",
       "iam:RemoveClientIDFromOpenIDConnectProvider",
       "iam:TagOpenIDConnectProvider",
+      "iam:UntagOpenIDConnectProvider",
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com",
@@ -453,6 +460,7 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "wafv2:ListTagsForResource",
       "wafv2:TagResource",
       "wafv2:UntagResource",
+      "wafv2:CheckCapacity",
     ]
     resources = ["*"]
   }
@@ -533,6 +541,8 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "logs:UntagResource",
       "logs:ListTagsLogGroup",
       "logs:TagLogGroup",
+      "logs:AssociateKmsKey",
+      "logs:DisassociateKmsKey",
     ]
     resources = [
       "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.environment}-${var.lambda_function_name}:*",
@@ -577,6 +587,7 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
     ]
     resources = [
       "arn:aws:cloudwatch::${data.aws_caller_identity.current.account_id}:dashboard/${var.environment}-*",
+      "arn:aws:cloudwatch::${data.aws_caller_identity.current.account_id}:dashboard/Serverless-App-Operations",
     ]
   }
 
@@ -622,6 +633,7 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "route53domains:ListTagsForDomain",
       "route53domains:UpdateTagsForDomain",
       "route53domains:DeleteTagsForDomain",
+      "route53domains:ListOperations",
     ]
     resources = ["*"] # Route 53 Domains does not support resource-level restrictions
   }
