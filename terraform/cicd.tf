@@ -147,6 +147,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:PutBucketPolicy",
       "s3:DeleteBucketPolicy",
       "s3:GetBucketAcl",
+      "s3:GetAccelerateConfiguration",
       "s3:PutBucketAcl",
       "s3:GetBucketVersioning",
       "s3:PutBucketVersioning",
@@ -194,6 +195,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions = [
       "lambda:GetFunction",
       "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionCodeSigningConfig",
       "lambda:CreateFunction",
       "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration",
