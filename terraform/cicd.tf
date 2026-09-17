@@ -364,7 +364,6 @@ data "aws_iam_policy_document" "github_actions_permissions_iam_kms" {
       "iam:CreateAccessKey",
       "iam:CreateLoginProfile",
       "iam:UpdateLoginProfile",
-      "iam:CreateServiceLinkedRole",
       "iam:DeactivateMFADevice",
     ]
     resources = ["*"]
@@ -682,6 +681,26 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "synthetics:UntagResource",
     ]
     resources = ["*"] # Synthetics does not support resource-level restrictions for most actions
+  }
+
+  # Cost Explorer anomaly detection — resource-level restrictions not supported
+  statement {
+    sid    = "CostAnomalyDetection"
+    effect = "Allow"
+    actions = [
+      "ce:CreateAnomalyMonitor",
+      "ce:GetAnomalyMonitors",
+      "ce:UpdateAnomalyMonitor",
+      "ce:DeleteAnomalyMonitor",
+      "ce:CreateAnomalySubscription",
+      "ce:GetAnomalySubscriptions",
+      "ce:UpdateAnomalySubscription",
+      "ce:DeleteAnomalySubscription",
+      "ce:TagResource",
+      "ce:UntagResource",
+      "ce:ListTagsForResource",
+    ]
+    resources = ["*"]
   }
 }
 

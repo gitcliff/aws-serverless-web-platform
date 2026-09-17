@@ -93,3 +93,15 @@ variable "backup_retention_days" {
   default     = 7
 }
 
+variable "cost_anomaly_threshold_percentage" {
+  description = "Minimum percentage increase in spend to trigger a cost anomaly alert"
+  type        = number
+  default     = 50
+}
+
+variable "cost_anomaly_threshold_absolute" {
+  description = "Minimum absolute dollar amount of spend increase to trigger a cost anomaly alert"
+  type        = number
+  default     = 10
+}
+
