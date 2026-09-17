@@ -47,6 +47,25 @@ data "aws_iam_policy_document" "sns_topic_policy" {
   }
 
   statement {
+    sid    = "AllowCostAnomalyPublish"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["costalerts.amazonaws.com"]
+    }
+
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.alerts.arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  statement {
     sid    = "DenyNonHTTPS"
     effect = "Deny"
 
