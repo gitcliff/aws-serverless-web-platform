@@ -699,6 +699,7 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "cognito-idp:CreateUserPoolDomain",
       "cognito-idp:DeleteUserPoolDomain",
       "cognito-idp:DescribeUserPoolDomain",
+      "cognito-idp:GetUserPoolMfaConfig",
       "cognito-idp:ListTagsForResource",
       "cognito-idp:TagResource",
       "cognito-idp:UntagResource",
