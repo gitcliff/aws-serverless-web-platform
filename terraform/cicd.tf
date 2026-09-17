@@ -539,7 +539,6 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "logs:DeleteLogGroup",
       "logs:PutRetentionPolicy",
       "logs:DeleteRetentionPolicy",
-      "logs:ListTagsForResource",
       "logs:TagResource",
       "logs:UntagResource",
       "logs:ListTagsLogGroup",
@@ -687,13 +686,18 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
 }
 
 data "aws_iam_policy_document" "github_actions_terraform_read" {
-  # DescribeLogGroups is a list API — AWS does not support resource-level
-  # restrictions for it, so it must be granted on "*".
+  # DescribeLogGroups is a list API with no resource-level support — must use "*".
+  # ListTagsForResource is also here because the Terraform AWS provider passes
+  # log group ARNs in a format (with or without trailing ":*") that may not
+  # match the scoped ARNs in CloudWatchLogs, so "*" is the safe scope.
   statement {
     sid    = "ReadCloudWatchLogGroups"
     effect = "Allow"
 
-    actions   = ["logs:DescribeLogGroups"]
+    actions = [
+      "logs:DescribeLogGroups",
+      "logs:ListTagsForResource",
+    ]
     resources = ["*"]
   }
 }
