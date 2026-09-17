@@ -177,6 +177,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:GetBucketNotification",
       "s3:GetBucketRequestPayment",
       "s3:GetBucketObjectLockConfiguration",
+      "s3:GetReplicationConfiguration",
     ]
     resources = [
       aws_s3_bucket.first_bucket.arn,
@@ -535,7 +536,6 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
     actions = [
       "logs:CreateLogGroup",
       "logs:DeleteLogGroup",
-      "logs:DescribeLogGroups",
       "logs:PutRetentionPolicy",
       "logs:DeleteRetentionPolicy",
       "logs:ListTagsForResource",
@@ -686,39 +686,13 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
 }
 
 data "aws_iam_policy_document" "github_actions_terraform_read" {
-  statement {
-    sid    = "ReadTerraformS3Buckets"
-    effect = "Allow"
-
-    actions = [
-      "s3:GetBucketAcl",
-      "s3:GetBucketLocation",
-      "s3:GetBucketLogging",
-      "s3:GetBucketOwnershipControls",
-      "s3:GetBucketPolicy",
-      "s3:GetBucketPublicAccessBlock",
-      "s3:GetReplicationConfiguration",
-      "s3:GetBucketVersioning",
-      "s3:GetEncryptionConfiguration",
-      "s3:GetLifecycleConfiguration",
-    ]
-
-    resources = [
-      "arn:aws:s3:::cliff-access-logs-${data.aws_caller_identity.current.account_id}",
-      "arn:aws:s3:::${var.bucket_name}-${data.aws_caller_identity.current.account_id}",
-      "arn:aws:s3:::${var.environment}-synthetics-artifacts-${data.aws_caller_identity.current.account_id}",
-    ]
-  }
-
+  # DescribeLogGroups is a list API — AWS does not support resource-level
+  # restrictions for it, so it must be granted on "*".
   statement {
     sid    = "ReadCloudWatchLogGroups"
     effect = "Allow"
 
-    actions = [
-      "logs:DescribeLogGroups",
-      "logs:ListTagsForResource",
-    ]
-
+    actions   = ["logs:DescribeLogGroups"]
     resources = ["*"]
   }
 }
