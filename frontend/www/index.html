@@ -3,77 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AWS Static Website Demo</title>
+    <title>AWS Serverless Web Platform</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <header class="hero">
-            <h1 class="hero-title">🚀 AWS Mulitier Servless Website</h1>
-            <p class="hero-subtitle">Powered by S3, CloudFront & Terraform</p>
+            <h1 class="hero-title">AWS Multi-Tier Serverless Platform</h1>
+            <p class="hero-subtitle">Route 53 &middot; CloudFront + WAF &middot; API Gateway &middot; Lambda &middot; DynamoDB</p>
         </header>
 
         <main class="content">
             <section class="features">
                 <div class="feature-card">
-                    <div class="feature-icon">☁️</div>
-                    <h3>S3 Hosting</h3>
-                    <p>Static files served from Amazon S3 bucket with optimized performance</p>
+                    <div class="feature-icon">🌐</div>
+                    <h3>Route 53</h3>
+                    <p>DNS routing to CloudFront — domain: <code>cliffworld.link</code></p>
                 </div>
-                
+
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>CloudFront + WAF</h3>
+                    <p>Global CDN with Web Application Firewall; rate-limited to 300 requests per 5 minutes</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">☁️</div>
+                    <h3>S3 Static Hosting</h3>
+                    <p>Private bucket; assets served exclusively through CloudFront via Origin Access Control</p>
+                </div>
+
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
-                    <h3>CloudFront CDN</h3>
-                    <p>Global content delivery network for lightning-fast load times</p>
+                    <h3>API Gateway v2</h3>
+                    <p>HTTP API with throttling — 20 req/s burst 50; routes <code>ANY /api/{proxy+}</code> to Lambda</p>
                 </div>
-                
+
                 <div class="feature-card">
-                    <div class="feature-icon">🏗️</div>
-                    <h3>Terraform IaC</h3>
-                    <p>Infrastructure as Code for reliable and repeatable deployments</p>
+                    <div class="feature-icon">λ</div>
+                    <h3>Lambda</h3>
+                    <p>Python 3.12 function — 256 MB, 5 s timeout, 20 reserved concurrency; no servers to manage</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🗄️</div>
+                    <h3>DynamoDB</h3>
+                    <p>On-demand table; atomic <code>ADD</code> increments power the visitor counter below</p>
                 </div>
             </section>
 
             <section class="demo-section">
-                <h2>Interactive Demo</h2>
+                <h2>Live Serverless API</h2>
+                <p class="demo-description">Each click hits API Gateway → Lambda → DynamoDB and returns the live visitor count.</p>
                 <div class="demo-controls">
-                    <button id="colorButton" class="btn btn-primary">Change Theme</button>
+                    <button id="colorButton" class="btn btn-primary">Dark Theme</button>
                     <button id="counterButton" class="btn btn-secondary">Visitor Count: <span id="counter">...</span></button>
                 </div>
-                
+
                 <div class="status-indicator">
                     <div class="status-dot"></div>
-                    <span>Website Status: <span id="status">Active</span></span>
+                    <span>API Status: <span id="status">Connecting</span></span>
                 </div>
             </section>
 
             <section class="info-section">
-                <h2>Architecture Overview</h2>
+                <h2>Request Flow</h2>
                 <div class="architecture">
                     <div class="arch-step">
                         <span class="step-number">1</span>
-                        <p>User requests website</p>
+                        <p>User Browser</p>
                     </div>
-                    <div class="arch-arrow">→</div>
+                    <div class="arch-arrow">&rarr;</div>
                     <div class="arch-step">
                         <span class="step-number">2</span>
-                        <p>CloudFront CDN</p>
+                        <p>Route 53</p>
                     </div>
-                    <div class="arch-arrow">→</div>
+                    <div class="arch-arrow">&rarr;</div>
                     <div class="arch-step">
                         <span class="step-number">3</span>
-                        <p>S3 Bucket</p>
+                        <p>CloudFront + WAF</p>
                     </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-step arch-branch">
+                        <span class="step-number">4</span>
+                        <p>S3 <span class="branch-label">(static)</span><br>API Gateway <span class="branch-label">(dynamic)</span></p>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-step">
+                        <span class="step-number">5</span>
+                        <p>Lambda</p>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-step">
+                        <span class="step-number">6</span>
+                        <p>DynamoDB</p>
+                    </div>
+                </div>
+
+                <div class="cicd-note">
+                    <span class="cicd-icon">🔁</span>
+                    <span>Deployed via <strong>GitHub Actions + OIDC</strong> — no long-lived AWS credentials; infrastructure managed with <strong>Terraform</strong></span>
                 </div>
             </section>
         </main>
 
         <footer class="footer">
-            <p>&copy; 2026 AWS Servless Website Demo | Built with ❤️ and Terraform</p>
+            <p>&copy; 2026 AWS Serverless Web Platform &mdash; Built with Terraform &amp; GitHub Actions</p>
         </footer>
     </div>
-    
+
     <script src="script.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// Visitor counter — calls the real backend API
+// Visitor counter — calls the real backend API (API Gateway → Lambda → DynamoDB)
 const counterButton = document.getElementById('counterButton');
 const counterSpan = document.getElementById('counter');
 const statusElement = document.getElementById('status');
@@ -25,32 +25,6 @@ async function fetchVisitorCount() {
     }
 }
 
-// Fetch count on page load
-document.addEventListener('DOMContentLoaded', function() {
-    fetchVisitorCount();
-
-    // Load saved theme preference
-    const savedTheme = localStorage.getItem('darkTheme');
-    if (savedTheme === 'true') {
-        isDarkTheme = true;
-        document.body.classList.add('dark-theme');
-        colorButton.textContent = 'Light Theme';
-    }
-
-    animateOnLoad();
-});
-
-// Each click increments the server-side counter
-counterButton.addEventListener('click', function() {
-    counterSpan.textContent = '...';
-    fetchVisitorCount();
-
-    counterButton.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-        counterButton.style.transform = 'scale(1)';
-    }, 100);
-});
-
 // Theme toggle
 const colorButton = document.getElementById('colorButton');
 let isDarkTheme = false;
@@ -62,7 +36,28 @@ colorButton.addEventListener('click', function() {
     localStorage.setItem('darkTheme', isDarkTheme);
 });
 
-// Animation on page load
+// Each click increments the server-side counter (Lambda → DynamoDB ADD)
+counterButton.addEventListener('click', function() {
+    counterSpan.textContent = '...';
+    fetchVisitorCount();
+
+    counterButton.style.transform = 'scale(0.95)';
+    setTimeout(() => {
+        counterButton.style.transform = 'scale(1)';
+    }, 100);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        counterButton.click();
+    } else if (e.key === 't' || e.key === 'T') {
+        colorButton.click();
+    }
+});
+
+// Animation on load
 function animateOnLoad() {
     const cards = document.querySelectorAll('.feature-card');
     cards.forEach((card, index) => {
@@ -72,14 +67,24 @@ function animateOnLoad() {
             card.style.transition = 'all 0.6s ease';
             card.style.opacity = '1';
             card.style.transform = 'translateY(0)';
-        }, index * 200);
+        }, index * 150);
     });
 }
 
-// Hover effects for feature cards
 document.addEventListener('DOMContentLoaded', function() {
-    const featureCards = document.querySelectorAll('.feature-card');
-    featureCards.forEach(card => {
+    fetchVisitorCount();
+
+    const savedTheme = localStorage.getItem('darkTheme');
+    if (savedTheme === 'true') {
+        isDarkTheme = true;
+        document.body.classList.add('dark-theme');
+        colorButton.textContent = 'Light Theme';
+    }
+
+    animateOnLoad();
+
+    // Hover effects for feature cards
+    document.querySelectorAll('.feature-card').forEach(card => {
         card.addEventListener('mouseenter', function() {
             this.style.transform = 'translateY(-10px) scale(1.02)';
         });
@@ -87,14 +92,4 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.transform = 'translateY(0) scale(1)';
         });
     });
-});
-
-// Keyboard navigation
-document.addEventListener('keydown', function(e) {
-    if (e.code === 'Space') {
-        e.preventDefault();
-        counterButton.click();
-    } else if (e.key === 't' || e.key === 'T') {
-        colorButton.click();
-    }
 });
