@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AWS Serverless Web Platform — Architecture Report</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1c2330;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --accent3: #f78166;
+      --accent4: #d2a8ff;
+      --accent5: #ffa657;
+      --accent6: #79c0ff;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --warn: #f0883e;
+      --good: #3fb950;
+      --bad: #f85149;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #0d1117 0%, #1a2332 50%, #0d1117 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 48px 40px 36px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: "";
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(88,166,255,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .header-meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+    .header h1 { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .header-sub { color: var(--muted); font-size: 14px; }
+    .header-badges { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      border: 1px solid;
+    }
+    .badge-blue  { background: rgba(88,166,255,0.1);  border-color: rgba(88,166,255,0.3);  color: var(--accent); }
+    .badge-green { background: rgba(63,185,80,0.1);   border-color: rgba(63,185,80,0.3);   color: var(--accent2); }
+    .badge-orange{ background: rgba(255,166,87,0.1);  border-color: rgba(255,166,87,0.3);  color: var(--accent5); }
+    .badge-purple{ background: rgba(210,168,255,0.1); border-color: rgba(210,168,255,0.3); color: var(--accent4); }
+
+    /* ── Layout ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+    @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    /* ── Section headings ── */
+    .section { margin-bottom: 48px; }
+    .section-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 20px; padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .section-title { font-size: 18px; font-weight: 600; }
+    .section-sub { color: var(--muted); font-size: 13px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .card-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+
+    /* ── Request flow diagram ── */
+    .flow-container { overflow-x: auto; padding: 20px 0; }
+    .flow {
+      display: flex; align-items: center; gap: 0;
+      min-width: 860px; padding: 0 20px;
+    }
+    .flow-node {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      text-align: center;
+      min-width: 100px;
+      flex-shrink: 0;
+    }
+    .flow-node .node-icon { font-size: 20px; margin-bottom: 4px; }
+    .flow-node .node-label { font-size: 11px; font-weight: 600; color: var(--text); }
+    .flow-node .node-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .flow-arrow {
+      flex: 1; display: flex; align-items: center;
+      position: relative; min-width: 40px;
+    }
+    .flow-arrow::after {
+      content: ""; position: absolute; right: 0;
+      width: 0; height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 8px solid var(--border);
+    }
+    .flow-arrow::before {
+      content: ""; display: block; width: 100%; height: 2px;
+      background: var(--border);
+    }
+    .flow-arrow .arrow-label {
+      position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+      font-size: 9px; color: var(--muted); white-space: nowrap;
+      background: var(--bg); padding: 0 4px;
+    }
+    .flow-branch { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── KV list ── */
+    .kv-list { list-style: none; }
+    .kv-list li {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 6px 0; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .kv-list li:last-child { border-bottom: none; }
+    .kv-key { color: var(--muted); font-size: 13px; flex-shrink: 0; }
+    .kv-val { font-size: 13px; text-align: right; }
+
+    /* ── Alarm table ── */
+    .alarm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .alarm-table th {
+      text-align: left; padding: 8px 12px;
+      background: var(--surface2); color: var(--muted);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .alarm-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .alarm-table tr:last-child td { border-bottom: none; }
+    .alarm-table tr:hover td { background: var(--surface2); }
+    .layer-tag {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 10px; font-weight: 600;
+    }
+    .tag-waf      { background: rgba(247,129,102,0.15); color: var(--accent3); }
+    .tag-cdn      { background: rgba(121,192,255,0.15); color: var(--accent6); }
+    .tag-apigw    { background: rgba(88,166,255,0.15);  color: var(--accent); }
+    .tag-lambda   { background: rgba(255,166,87,0.15);  color: var(--accent5); }
+    .tag-dynamo   { background: rgba(63,185,80,0.15);   color: var(--accent2); }
+    .tag-slo      { background: rgba(210,168,255,0.15); color: var(--accent4); }
+    .tag-canary   { background: rgba(63,185,80,0.15);   color: var(--accent2); }
+
+    /* ── SLO cards ── */
+    .slo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .slo-card::before {
+      content: "";
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .slo-card.slo-avail::before  { background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+    .slo-card.slo-latency::before { background: linear-gradient(90deg, var(--accent5), var(--accent4)); }
+    .slo-target { font-size: 32px; font-weight: 700; margin: 8px 0 4px; }
+    .slo-label  { color: var(--muted); font-size: 13px; }
+    .slo-detail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .slo-detail p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .slo-issue {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: rgba(248,81,73,0.08);
+      border: 1px solid rgba(248,81,73,0.2);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--bad);
+    }
+    .slo-fix {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: rgba(63,185,80,0.08);
+      border: 1px solid rgba(63,185,80,0.2);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--good);
+    }
+
+    /* ── Cost table ── */
+    .cost-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .cost-table th {
+      text-align: left; padding: 8px 12px;
+      background: var(--surface2); color: var(--muted);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cost-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+    .cost-table tr:last-child td { border-bottom: none; }
+    .cost-table tr:hover td { background: var(--surface2); }
+    .cost-free  { color: var(--good); font-weight: 600; }
+    .cost-low   { color: var(--accent5); font-weight: 600; }
+    .cost-med   { color: var(--warn); font-weight: 600; }
+
+    /* ── Security items ── */
+    .security-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 700px) { .security-grid { grid-template-columns: 1fr; } }
+    .security-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .security-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .security-item-icon { font-size: 20px; }
+    .security-item-title { font-size: 14px; font-weight: 600; }
+    .security-item-body { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .check { color: var(--good); margin-right: 4px; }
+
+    /* ── Metric pills ── */
+    .metric-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .metric-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+    }
+    .metric-pill .mp-val { font-size: 20px; font-weight: 700; color: var(--accent); display: block; }
+    .metric-pill .mp-label { color: var(--muted); font-size: 11px; }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 48px;
+      padding: 24px 40px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      background: var(--surface2);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--accent4);
+    }
+    .divider { height: 1px; background: var(--border); margin: 32px 0; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div class="header">
+  <div class="header-meta">Architecture Report &nbsp;·&nbsp; 2026-09-16</div>
+  <h1>AWS Serverless Web Platform</h1>
+  <div class="header-sub">cliffworld.link &nbsp;·&nbsp; us-east-1 &nbsp;·&nbsp; 22 managed resources &nbsp;·&nbsp; 17 Terraform modules</div>
+  <div class="header-badges">
+    <span class="badge badge-blue">Terraform IaC</span>
+    <span class="badge badge-green">Serverless</span>
+    <span class="badge badge-orange">GitHub Actions CI/CD</span>
+    <span class="badge badge-purple">OIDC (no long-lived keys)</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ═══════════════ REQUEST FLOW ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(88,166,255,0.1);">🌐</div>
+      <div>
+        <div class="section-title">Request Flow</div>
+        <div class="section-sub">End-to-end path from browser to database</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="flow-container">
+        <div class="flow">
+          <div class="flow-node">
+            <div class="node-icon">🖥️</div>
+            <div class="node-label">Browser</div>
+            <div class="node-sub">User</div>
+          </div>
+          <div class="flow-arrow"><span class="arrow-label">DNS query</span></div>
+          <div class="flow-node">
+            <div class="node-icon">📡</div>
+            <div class="node-label">Route 53</div>
+            <div class="node-sub">cliffworld.link</div>
+          </div>
+          <div class="flow-arrow"><span class="arrow-label">HTTPS</span></div>
+          <div class="flow-node">
+            <div class="node-icon">🛡️</div>
+            <div class="node-label">CloudFront + WAF</div>
+            <div class="node-sub">PriceClass_100</div>
+          </div>
+          <div class="flow-arrow"><span class="arrow-label">/api/*</span></div>
+          <div class="flow-node">
+            <div class="node-icon">⚡</div>
+            <div class="node-label">API Gateway v2</div>
+            <div class="node-sub">20 rps / burst 50</div>
+          </div>
+          <div class="flow-arrow"><span class="arrow-label">invoke</span></div>
+          <div class="flow-node">
+            <div class="node-icon">λ</div>
+            <div class="node-label">Lambda</div>
+            <div class="node-sub">Python 3.12</div>
+          </div>
+          <div class="flow-arrow"><span class="arrow-label">UpdateItem</span></div>
+          <div class="flow-node">
+            <div class="node-icon">🗃️</div>
+            <div class="node-label">DynamoDB</div>
+            <div class="node-sub">on-demand</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px; font-size:12px; color:var(--muted);">
+        Static assets (<code>GET /*</code>) are served directly from S3 via CloudFront OAC + SigV4 — Lambda is never invoked for static content.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ COST ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(63,185,80,0.1);">💰</div>
+      <div>
+        <div class="section-title">Cost Profile</div>
+        <div class="section-sub">Pay-per-use architecture — no idle compute costs</div>
+      </div>
+    </div>
+    <div class="card">
+      <table class="cost-table">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Billing Model</th>
+            <th>Configuration</th>
+            <th>Cost Optimisations</th>
+            <th>Estimated Tier</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Lambda</strong></td>
+            <td>Per invocation + GB-s</td>
+            <td>256 MB · 5 s timeout · 20 reserved concurrency</td>
+            <td>Reserved concurrency caps spend spikes; 256 MB right-sized for a counter function</td>
+            <td><span class="cost-free">Free tier / ~$0.00</span></td>
+          </tr>
+          <tr>
+            <td><strong>DynamoDB</strong></td>
+            <td>PAY_PER_REQUEST (on-demand)</td>
+            <td>Single-table visitor counter; atomic ADD increments</td>
+            <td>On-demand avoids over-provisioning; PITR adds recovery without extra tables</td>
+            <td><span class="cost-free">~$0.00–$0.25/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>CloudFront</strong></td>
+            <td>Per GB transferred + requests</td>
+            <td>PriceClass_100 (NA + EU edge locations only)</td>
+            <td>PriceClass_100 reduces data-transfer costs vs. global; 1 hr TTL on static assets minimises origin requests</td>
+            <td><span class="cost-free">Free tier / ~$0.01/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>API Gateway v2 (HTTP)</strong></td>
+            <td>Per million requests</td>
+            <td>HTTP API (not REST) — ~70 % cheaper</td>
+            <td>HTTP API chosen over REST API to reduce per-call cost; cache disabled on /api/* (dynamic data)</td>
+            <td><span class="cost-free">Free tier / ~$0.00</span></td>
+          </tr>
+          <tr>
+            <td><strong>S3</strong></td>
+            <td>Per GB stored + requests</td>
+            <td>Website bucket + access-logs bucket + canary-artifacts bucket</td>
+            <td>Lifecycle: noncurrent versions → STANDARD_IA at 30 d, expire at 90 d; canary artifacts expire at 15 d; logs expire at 90 d</td>
+            <td><span class="cost-free">~$0.02/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>WAF</strong></td>
+            <td>Per ACL + per million requests</td>
+            <td>1 Web ACL; IP rate-limit rule + AWS managed CRS</td>
+            <td>Only 2 rules active; managed rule set is cheaper than custom rules</td>
+            <td><span class="cost-low">~$6.00/mo (ACL fixed cost)</span></td>
+          </tr>
+          <tr>
+            <td><strong>KMS</strong></td>
+            <td>Per CMK + API calls</td>
+            <td>1 customer-managed key (S3, CloudWatch Logs, Lambda env vars)</td>
+            <td>Single CMK shared across services reduces key cost to ~$1/mo; <code>bucket_key_enabled = true</code> caches data keys to cut KMS API calls</td>
+            <td><span class="cost-low">~$1.00/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>CloudWatch</strong></td>
+            <td>Per alarm + log ingestion</td>
+            <td>14 metric alarms + 2 composite + 1 dashboard + 2 log groups</td>
+            <td>Log retention capped at 365 days; composite alarms layer on existing metric alarms at no extra alarm cost</td>
+            <td><span class="cost-low">~$3–5/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>CloudWatch Synthetics</strong></td>
+            <td>Per canary run</td>
+            <td>1 canary · runs every 15 minutes</td>
+            <td>15-minute interval is the minimum to avoid extra per-run costs; artifacts expire in 15 days</td>
+            <td><span class="cost-low">~$0.18/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>Route 53</strong></td>
+            <td>Per hosted zone + queries</td>
+            <td>1 hosted zone (cliffworld.link)</td>
+            <td>Single hosted zone; DNS query cost negligible at personal-site scale</td>
+            <td><span class="cost-low">~$0.50/mo</span></td>
+          </tr>
+          <tr>
+            <td><strong>ACM (TLS)</strong></td>
+            <td>Free for public certs</td>
+            <td>Wildcard cert for cliffworld.link</td>
+            <td>ACM public certificates have no cost</td>
+            <td><span class="cost-free">$0.00</span></td>
+          </tr>
+          <tr>
+            <td><strong>SNS</strong></td>
+            <td>Per notification</td>
+            <td>1 topic; email subscription for alerts</td>
+            <td>Email delivery is nearly free; HTTPS-only policy prevents unencrypted publishes</td>
+            <td><span class="cost-free">~$0.00</span></td>
+          </tr>
+          <tr>
+            <td><strong>SQS (DLQ)</strong></td>
+            <td>Per million requests</td>
+            <td>Lambda dead-letter queue; 14-day retention</td>
+            <td>Only fires on async Lambda failures (rarely, given synchronous API Gateway invocation)</td>
+            <td><span class="cost-free">~$0.00</span></td>
+          </tr>
+          <tr style="background:var(--surface2);">
+            <td colspan="4"><strong>Estimated Monthly Total</strong></td>
+            <td><strong style="color:var(--accent);">~$11–14 / month</strong><br/><span style="font-size:11px;color:var(--muted);">WAF + KMS dominate at low traffic</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════ SECURITY ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(247,129,102,0.1);">🔒</div>
+      <div>
+        <div class="section-title">Security</div>
+        <div class="section-sub">Defence-in-depth across all layers</div>
+      </div>
+    </div>
+    <div class="security-grid">
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">🌐</span>
+          <span class="security-item-title">Edge Protection (WAF + CloudFront)</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>IP rate-limit rule: 300 req / 5-min window, hard block<br/>
+          <span class="check">✓</span>AWS Managed Rules — Common Rule Set (priority 1)<br/>
+          <span class="check">✓</span>HTTP → HTTPS redirect enforced on all behaviours<br/>
+          <span class="check">✓</span>TLS 1.2 minimum; TLSv1.2_2021 cipher policy<br/>
+          <span class="check">✓</span>SNI-only certificate (no dedicated IP cost)<br/>
+          <span class="check">✓</span>IPv6 enabled for global reach
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">📋</span>
+          <span class="security-item-title">HTTP Security Headers</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>HSTS: max-age=31536000; includeSubDomains; preload<br/>
+          <span class="check">✓</span>X-Frame-Options: DENY (anti-clickjacking)<br/>
+          <span class="check">✓</span>X-Content-Type-Options: nosniff<br/>
+          <span class="check">✓</span>XSS-Protection: 1; mode=block (legacy browsers)<br/>
+          <span class="check">✓</span>CSP: restricts scripts/connections to <code>self</code> and apex domain<br/>
+          <span class="check">✓</span>Permissions-Policy: disables camera, microphone, geolocation, payment, USB
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">🗄️</span>
+          <span class="security-item-title">S3 Origin Access (OAC + SigV4)</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>Bucket is fully private — all public ACL/policy access blocked<br/>
+          <span class="check">✓</span>Origin Access Control (OAC) with always-sign SigV4 — replaces legacy OAI<br/>
+          <span class="check">✓</span>Bucket policy scoped to specific CloudFront distribution ARN via <code>AWS:SourceArn</code><br/>
+          <span class="check">✓</span>Server-side encryption with customer-managed KMS key (<code>aws:kms</code>)<br/>
+          <span class="check">✓</span>Bucket Key enabled to reduce KMS API calls
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">🔑</span>
+          <span class="security-item-title">Encryption at Rest (KMS CMK)</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>Single customer-managed KMS key shared across S3, CloudWatch Logs, Lambda env vars<br/>
+          <span class="check">✓</span>Automatic key rotation enabled<br/>
+          <span class="check">✓</span>7-day deletion window (safety buffer before permanent deletion)<br/>
+          <span class="check">✓</span>CloudWatch Logs grants scoped to account ARN via encryption context<br/>
+          <span class="check">✓</span>SNS uses AWS-managed key (<code>alias/aws/sns</code>); SQS DLQ uses <code>alias/aws/sqs</code>
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">🤖</span>
+          <span class="security-item-title">IAM &amp; CI/CD (OIDC)</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>GitHub Actions uses OIDC — no long-lived AWS access keys stored in secrets<br/>
+          <span class="check">✓</span>IAM roles follow least-privilege; Lambda role scoped to specific DynamoDB table and log group ARNs<br/>
+          <span class="check">✓</span>Lambda API Gateway permission scoped to the <code>live</code> alias, not <code>$LATEST</code><br/>
+          <span class="check">✓</span>Canary IAM role limited to its specific S3 artifact bucket and Synthetics namespace<br/>
+          <span class="check">✓</span>destroy workflow requires environment reviewer approval
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">🗃️</span>
+          <span class="security-item-title">Data Layer (DynamoDB)</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>Server-side encryption enabled (DynamoDB-owned key)<br/>
+          <span class="check">✓</span>Point-in-time recovery (PITR) enabled<br/>
+          <span class="check">✓</span>AWS Backup with configurable retention (7 / 14 / 30 days per env)<br/>
+          <span class="check">✓</span>CORS origin locked to <code>https://cliffworld.link</code> in Lambda response headers<br/>
+          <span class="check">✓</span>Atomic <code>ADD</code> increments prevent race conditions
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">📜</span>
+          <span class="security-item-title">SNS Topic Policy</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>Explicit deny on <code>sns:Publish</code> when <code>aws:SecureTransport = false</code> — all notifications must use TLS<br/>
+          <span class="check">✓</span>CloudWatch allowed to publish only from the same account (<code>aws:SourceAccount</code> condition)<br/>
+          <span class="check">✓</span>No wildcard principals granted Publish rights
+        </div>
+      </div>
+      <div class="security-item">
+        <div class="security-item-header">
+          <span class="security-item-icon">🔍</span>
+          <span class="security-item-title">Pre-commit &amp; CI Scanning</span>
+        </div>
+        <div class="security-item-body">
+          <span class="check">✓</span>tfsec (security scanner) runs on every commit and PR<br/>
+          <span class="check">✓</span>checkov (IaC compliance) runs on every PR<br/>
+          <span class="check">✓</span>tflint linting gate in CI<br/>
+          <span class="check">✓</span>terraform validate + fmt-check on every PR<br/>
+          <span class="check">✓</span>Pre-commit hooks replicate all checks locally
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ COMPUTE ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(255,166,87,0.1);">⚡</div>
+      <div>
+        <div class="section-title">Compute</div>
+        <div class="section-sub">AWS Lambda — serverless, event-driven execution</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Lambda Configuration</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Runtime</span><span class="kv-val">Python 3.12</span></li>
+          <li><span class="kv-key">Memory</span><span class="kv-val">256 MB</span></li>
+          <li><span class="kv-key">Timeout</span><span class="kv-val">5 s</span></li>
+          <li><span class="kv-key">Reserved concurrency</span><span class="kv-val">20 executions (hard cap)</span></li>
+          <li><span class="kv-key">Tracing</span><span class="kv-val">X-Ray Active</span></li>
+          <li><span class="kv-key">Dead-letter queue</span><span class="kv-val">SQS (14-day retention, KMS-encrypted)</span></li>
+          <li><span class="kv-key">Env vars encryption</span><span class="kv-val">Customer-managed KMS CMK</span></li>
+          <li><span class="kv-key">Versioning</span><span class="kv-val"><code>publish = true</code>; pinned to <code>live</code> alias</span></li>
+          <li><span class="kv-key">Deployment</span><span class="kv-val">Blue/green via alias traffic shift</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Runtime Behaviour</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Function</span><span class="kv-val">Visitor counter — atomic DynamoDB <code>ADD</code></span></li>
+          <li><span class="kv-key">Trigger</span><span class="kv-val">API Gateway v2 HTTP (synchronous)</span></li>
+          <li><span class="kv-key">Response</span><span class="kv-val"><code>{"visitor_count": N}</code> + CORS headers</span></li>
+          <li><span class="kv-key">CORS origin</span><span class="kv-val">Locked to <code>https://cliffworld.link</code></span></li>
+          <li><span class="kv-key">API route</span><span class="kv-val"><code>ANY /api/{proxy+}</code></span></li>
+          <li><span class="kv-key">API throttle</span><span class="kv-val">20 req/s steady · 50 burst</span></li>
+          <li><span class="kv-key">Payload format</span><span class="kv-val">2.0 (API GW v2 native)</span></li>
+          <li><span class="kv-key">Dependencies</span><span class="kv-val">aws-xray-sdk (installed via pip into package/)</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-pill"><span class="mp-val">5 s</span><span class="mp-label">Max timeout</span></div>
+      <div class="metric-pill"><span class="mp-val">256 MB</span><span class="mp-label">Memory allocation</span></div>
+      <div class="metric-pill"><span class="mp-val">20</span><span class="mp-label">Reserved concurrency cap</span></div>
+      <div class="metric-pill"><span class="mp-val">3 s</span><span class="mp-label">p95 duration alarm threshold</span></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ STORAGE ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(121,192,255,0.1);">🗄️</div>
+      <div>
+        <div class="section-title">Storage</div>
+        <div class="section-sub">S3 for static assets and logs; DynamoDB for application state</div>
+      </div>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">S3 — Website Bucket</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Access</span><span class="kv-val">Private (OAC only)</span></li>
+          <li><span class="kv-key">Encryption</span><span class="kv-val">SSE-KMS (CMK)</span></li>
+          <li><span class="kv-key">Versioning</span><span class="kv-val">Enabled</span></li>
+          <li><span class="kv-key">Lifecycle</span><span class="kv-val">IA at 30 d · expire at 90 d (noncurrent)</span></li>
+          <li><span class="kv-key">Content</span><span class="kv-val">index.html, styles.css, script.js</span></li>
+          <li><span class="kv-key">Logging</span><span class="kv-val">S3 server access logs → access-logs bucket</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">S3 — Access Logs Bucket</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Encryption</span><span class="kv-val">SSE-S3 (AES256)</span></li>
+          <li><span class="kv-key">ACL</span><span class="kv-val">log-delivery-write (required for CF logs)</span></li>
+          <li><span class="kv-key">Receives</span><span class="kv-val">CloudFront access logs + S3 server access logs</span></li>
+          <li><span class="kv-key">Lifecycle</span><span class="kv-val">IA at 30 d · expire at 90 d</span></li>
+          <li><span class="kv-key">Public access</span><span class="kv-val">Blocked (policy + buckets)</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">S3 — Canary Artifacts</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Encryption</span><span class="kv-val">SSE-S3 (AES256)</span></li>
+          <li><span class="kv-key">Versioning</span><span class="kv-val">Enabled</span></li>
+          <li><span class="kv-key">Lifecycle</span><span class="kv-val">All objects expire at 15 d; noncurrent at 7 d</span></li>
+          <li><span class="kv-key">Failure artifacts</span><span class="kv-val">Kept 14 days for diagnosis</span></li>
+          <li><span class="kv-key">Success artifacts</span><span class="kv-val">Kept 2 days</span></li>
+        </ul>
+      </div>
+      <div class="card" style="grid-column: span 2;">
+        <div class="card-title">DynamoDB — visitor-counter</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Billing mode</span><span class="kv-val">PAY_PER_REQUEST (on-demand)</span></li>
+          <li><span class="kv-key">Hash key</span><span class="kv-val"><code>counter_id</code> (String)</span></li>
+          <li><span class="kv-key">Encryption</span><span class="kv-val">SSE enabled (DynamoDB-owned key)</span></li>
+          <li><span class="kv-key">PITR</span><span class="kv-val">Point-in-time recovery enabled (35-day window)</span></li>
+          <li><span class="kv-key">Backup</span><span class="kv-val">AWS Backup vault — 7 d (dev) / 14 d (staging) / 30 d (prod)</span></li>
+          <li><span class="kv-key">Write pattern</span><span class="kv-val">Atomic ADD increment on every API request; no reads required</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">CloudWatch Log Groups</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">API Gateway logs</span><span class="kv-val">365 days · KMS CMK encrypted</span></li>
+          <li><span class="kv-key">Lambda logs</span><span class="kv-val">365 days · KMS CMK encrypted</span></li>
+          <li><span class="kv-key">Synthetics logs</span><span class="kv-val">Auto-created by Synthetics service</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ TRAFFIC & NETWORK ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(210,168,255,0.1);">📶</div>
+      <div>
+        <div class="section-title">Traffic &amp; Network</div>
+        <div class="section-sub">Edge distribution, rate controls, and protocol enforcement</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">CloudFront Distribution</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Price class</span><span class="kv-val">PriceClass_100 (NA + EU PoPs)</span></li>
+          <li><span class="kv-key">IPv6</span><span class="kv-val">Enabled</span></li>
+          <li><span class="kv-key">Default behaviour</span><span class="kv-val">S3 origin (static) · 1 hr TTL · GET/HEAD only</span></li>
+          <li><span class="kv-key">/api/* behaviour</span><span class="kv-val">API Gateway origin · TTL=0 (no cache) · all methods</span></li>
+          <li><span class="kv-key">Error pages</span><span class="kv-val">403 / 404 → /index.html (SPA routing)</span></li>
+          <li><span class="kv-key">Viewer protocol</span><span class="kv-val">redirect-to-https (static) · https-only (API)</span></li>
+          <li><span class="kv-key">Origin protocol</span><span class="kv-val">TLS 1.2-only to API Gateway</span></li>
+          <li><span class="kv-key">Forwarded headers (API)</span><span class="kv-val">Authorization, Origin; all cookies; query strings</span></li>
+          <li><span class="kv-key">Geo restriction</span><span class="kv-val">None</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">WAF Rate Limiting &amp; Rules</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Scope</span><span class="kv-val">CLOUDFRONT (evaluated at edge)</span></li>
+          <li><span class="kv-key">Default action</span><span class="kv-val">Allow</span></li>
+          <li><span class="kv-key">Rule 1 (priority 0)</span><span class="kv-val">IP rate-limit: block &gt;300 req / 5 min per source IP</span></li>
+          <li><span class="kv-key">Rule 2 (priority 1)</span><span class="kv-val">AWSManagedRulesCommonRuleSet</span></li>
+          <li><span class="kv-key">Metrics</span><span class="kv-val">CloudWatch metrics + sampled requests enabled on all rules</span></li>
+          <li><span class="kv-key">Alarm</span><span class="kv-val">Fires when ≥ 100 requests blocked in 5 minutes</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">API Gateway v2 (HTTP API)</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Protocol</span><span class="kv-val">HTTP</span></li>
+          <li><span class="kv-key">Route</span><span class="kv-val"><code>ANY /api/{proxy+}</code></span></li>
+          <li><span class="kv-key">Stage</span><span class="kv-val">Auto-deploy enabled</span></li>
+          <li><span class="kv-key">Throttle (steady)</span><span class="kv-val">20 req/s</span></li>
+          <li><span class="kv-key">Throttle (burst)</span><span class="kv-val">50 concurrent</span></li>
+          <li><span class="kv-key">Integration</span><span class="kv-val">Lambda proxy (targets <code>live</code> alias)</span></li>
+          <li><span class="kv-key">Payload format</span><span class="kv-val">2.0</span></li>
+          <li><span class="kv-key">Access logs</span><span class="kv-val">JSON → CloudWatch log group (365 d)</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">DNS (Route 53)</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Domain</span><span class="kv-val">cliffworld.link</span></li>
+          <li><span class="kv-key">Hosted zone</span><span class="kv-key">Public</span></li>
+          <li><span class="kv-key">TLS cert</span><span class="kv-val">ACM — us-east-1 (required for CloudFront)</span></li>
+          <li><span class="kv-key">Cert validation</span><span class="kv-val">DNS validation via Route 53 CNAME records</span></li>
+          <li><span class="kv-key">Min TLS version</span><span class="kv-val">TLSv1.2_2021</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-pill"><span class="mp-val">300</span><span class="mp-label">WAF rate limit (req / 5 min / IP)</span></div>
+      <div class="metric-pill"><span class="mp-val">20 rps</span><span class="mp-label">API Gateway steady-state limit</span></div>
+      <div class="metric-pill"><span class="mp-val">50</span><span class="mp-label">API Gateway burst limit</span></div>
+      <div class="metric-pill"><span class="mp-val">TLS 1.2</span><span class="mp-label">Minimum protocol version</span></div>
+      <div class="metric-pill"><span class="mp-val">0 s</span><span class="mp-label">API cache TTL (dynamic data)</span></div>
+      <div class="metric-pill"><span class="mp-val">3600 s</span><span class="mp-label">Default static asset TTL</span></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ MONITORING & OBSERVABILITY ═══════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(63,185,80,0.1);">📊</div>
+      <div>
+        <div class="section-title">Monitoring &amp; Observability</div>
+        <div class="section-sub">14 metric alarms · 2 composite SLO alarms · synthetic canary · X-Ray tracing · dashboard</div>
+      </div>
+    </div>
+
+    <!-- Alarms table -->
+    <div class="card" style="overflow-x:auto; margin-bottom:20px;">
+      <div class="card-title">CloudWatch Alarm Inventory</div>
+      <table class="alarm-table">
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Alarm</th>
+            <th>Metric</th>
+            <th>Threshold</th>
+            <th>Window</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="layer-tag tag-waf">WAF</span></td>
+            <td>High blocked requests</td>
+            <td>BlockedRequests (Sum)</td>
+            <td>≥ 100</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-cdn">CDN</span></td>
+            <td>CloudFront 5xx error rate</td>
+            <td>5xxErrorRate (Avg)</td>
+            <td>&gt; 1 %</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-cdn">CDN</span></td>
+            <td>CloudFront 4xx error rate</td>
+            <td>4xxErrorRate (Avg)</td>
+            <td>&gt; 5 %</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-cdn">CDN</span></td>
+            <td>CloudFront origin latency</td>
+            <td>OriginLatency (Avg)</td>
+            <td>&gt; 800 ms</td>
+            <td>2 × 1 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-apigw">API GW</span></td>
+            <td>API 5xx error rate</td>
+            <td>5XXError (Sum)</td>
+            <td>≥ 5 errors</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-apigw">API GW</span></td>
+            <td>API average latency</td>
+            <td>Latency (Avg)</td>
+            <td>&gt; 1000 ms</td>
+            <td>2 × 1 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-apigw">API GW</span></td>
+            <td>API p95 latency (SLO metric)</td>
+            <td>Latency (p95)</td>
+            <td>&gt; 500 ms</td>
+            <td>3 × 1 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-lambda">Lambda</span></td>
+            <td>Lambda error rate</td>
+            <td>Errors (Sum)</td>
+            <td>≥ 5 errors</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-lambda">Lambda</span></td>
+            <td>Lambda p95 duration</td>
+            <td>Duration (p95)</td>
+            <td>&gt; 3000 ms</td>
+            <td>3 × 1 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-dynamo">DynamoDB</span></td>
+            <td>DynamoDB system errors</td>
+            <td>SystemErrors (Sum)</td>
+            <td>≥ 1</td>
+            <td>5 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-dynamo">DynamoDB</span></td>
+            <td>DynamoDB UpdateItem latency</td>
+            <td>SuccessfulRequestLatency (Avg)</td>
+            <td>&gt; 50 ms</td>
+            <td>2 × 1 min</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-canary">Canary</span></td>
+            <td>API health canary failure</td>
+            <td>SuccessPercent (Avg)</td>
+            <td>&lt; 100 %</td>
+            <td>5 min · treat missing = breaching</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-slo">SLO</span></td>
+            <td><strong>Availability SLO breach</strong></td>
+            <td>Metric Math: (5XXError / Count) × 100</td>
+            <td>&gt; 0.1 %</td>
+            <td>5 min · 1 period</td>
+          </tr>
+          <tr>
+            <td><span class="layer-tag tag-slo">SLO</span></td>
+            <td><strong>Latency SLO breach</strong> (composite)</td>
+            <td>p95 OR avg latency alarms</td>
+            <td>Either child in ALARM</td>
+            <td>Composite</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SLO cards -->
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div class="slo-card slo-avail">
+        <div class="card-title">Availability SLO</div>
+        <div class="slo-target" style="color:var(--accent2);">99.9 %</div>
+        <div class="slo-label">≤ 0.1 % error rate · ≤ 43.8 min downtime / month</div>
+        <div class="slo-detail">
+          <p>
+            Measured directly as <code>(5XXError / Count) × 100</code> via CloudWatch Metric Math over a 5-minute rolling window.
+            Triggers when the observed error rate exceeds 0.1 %, meaning the service is delivering fewer than 99.9 % successful responses.
+            A zero-traffic guard (<code>IF(m_count &gt; 0, …, 0)</code>) prevents false alarms during quiet periods.
+          </p>
+          <div class="slo-fix">
+            Fix applied: replaced the composite "both error alarms firing" signal with a direct error-rate calculation.
+            The previous design only triggered when both API Gateway AND Lambda error alarms were simultaneously active —
+            it could not detect degradation when only one tier was failing or when error rates were high but below the per-alarm threshold.
+          </div>
+        </div>
+      </div>
+      <div class="slo-card slo-latency">
+        <div class="card-title">Latency SLO</div>
+        <div class="slo-target" style="color:var(--accent5);">p95 &lt; 500 ms</div>
+        <div class="slo-label">Tail latency objective for API responses</div>
+        <div class="slo-detail">
+          <p>
+            Measured directly from the <code>Latency (p95)</code> metric on the API Gateway, evaluated over 3 consecutive 1-minute periods.
+            A composite alarm also captures average-latency degradation as an early-warning signal.
+          </p>
+          <div class="slo-fix">
+            Fix applied: composite alarm logic changed from <strong>AND</strong> to <strong>OR</strong>.
+            The prior AND condition required both p95 and average thresholds to breach simultaneously —
+            masking scenarios where only one threshold was exceeded (e.g., tail latency spike without a corresponding average shift).
+            Either condition alone is now sufficient to signal SLO risk.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Synthetic monitoring + X-Ray -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">CloudWatch Synthetics Canary</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Runtime</span><span class="kv-val">syn-nodejs-puppeteer-9.1</span></li>
+          <li><span class="kv-key">Schedule</span><span class="kv-val">Every 15 minutes</span></li>
+          <li><span class="kv-key">Endpoint</span><span class="kv-val"><code>https://cliffworld.link/api/</code></span></li>
+          <li><span class="kv-key">Timeout</span><span class="kv-val">30 s per run</span></li>
+          <li><span class="kv-key">Alarm trigger</span><span class="kv-val">Any failure (SuccessPercent &lt; 100); missing data = breaching</span></li>
+          <li><span class="kv-key">Artifacts</span><span class="kv-val">Stored in S3; failures kept 14 d, passing kept 2 d</span></li>
+          <li><span class="kv-key">IAM role</span><span class="kv-val">Least-privilege; scoped to artifact bucket + Synthetics namespace</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">X-Ray Tracing &amp; Dashboard</div>
+        <ul class="kv-list">
+          <li><span class="kv-key">Lambda tracing</span><span class="kv-val">Active (all invocations sampled)</span></li>
+          <li><span class="kv-key">Canary tracing</span><span class="kv-val">X-Ray put-trace-segments enabled</span></li>
+          <li><span class="kv-key">End-to-end visibility</span><span class="kv-val">API Gateway → Lambda → DynamoDB trace map</span></li>
+          <li><span class="kv-key">Dashboard</span><span class="kv-val">CloudWatch Dashboard aggregating key metrics across all layers</span></li>
+          <li><span class="kv-key">API GW access logs</span><span class="kv-val">Structured JSON; requestId, IP, method, status, latency, integration error</span></li>
+          <li><span class="kv-key">Notification channel</span><span class="kv-val">SNS topic → email subscription (all alarms)</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-pill"><span class="mp-val">14</span><span class="mp-label">CloudWatch metric alarms</span></div>
+      <div class="metric-pill"><span class="mp-val">2</span><span class="mp-label">Composite SLO alarms</span></div>
+      <div class="metric-pill"><span class="mp-val">15 min</span><span class="mp-label">Canary run interval</span></div>
+      <div class="metric-pill"><span class="mp-val">5</span><span class="mp-label">Observable layers (WAF → DynamoDB)</span></div>
+      <div class="metric-pill"><span class="mp-val">365 d</span><span class="mp-label">Log retention</span></div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<div class="footer">
+  <span>AWS Serverless Web Platform &nbsp;·&nbsp; cliffworld.link</span>
+  <span>Generated 2026-09-16 &nbsp;·&nbsp; Terraform-managed &nbsp;·&nbsp; 22 resources across 17 modules</span>
+</div>
+
+</body>
+</html>

@@ -21,11 +21,10 @@ table = dynamodb.Table(os.environ["DYNAMODB_TABLE"])
 
 
 def lambda_handler(event, context):
-    # Structured log fields present on every entry — queryable in Logs Insights
     request_id = context.aws_request_id if context else "local"
     environment = os.environ.get("ENVIRONMENT", "unknown")
     # Propagate X-Ray trace ID so Lambda logs, API GW logs, and X-Ray traces
-    # can all be correlated by a single ID in Logs Insights queries
+    # can all be correlated by a single ID in Logs Insights queries.
     trace_id = (event.get("headers") or {}).get("x-amzn-trace-id", "none")
 
     headers = {
@@ -33,6 +32,24 @@ def lambda_handler(event, context):
         "Access-Control-Allow-Origin": os.environ["ALLOWED_ORIGIN"],
     }
 
+    # For HTTP API v2 with a named stage, rawPath includes the stage prefix
+    # (e.g. /serverless_lambda_stage/api/visitor). Use endswith so routing
+    # works both via API GW and direct Lambda invocation.
+    path = event.get("rawPath", "")
+
+    if path.endswith("/api/visitor"):
+        return _handle_visitor_count(headers, request_id, trace_id, environment)
+    elif path.endswith("/api/dashboard"):
+        return _handle_dashboard(event, headers, request_id)
+    else:
+        return {
+            "statusCode": 404,
+            "headers": headers,
+            "body": json.dumps({"error": "Not found"}),
+        }
+
+
+def _handle_visitor_count(headers, request_id, trace_id, environment):
     try:
         response = table.update_item(
             Key={"counter_id": "visitors"},
@@ -102,3 +119,31 @@ def lambda_handler(event, context):
             "headers": headers,
             "body": json.dumps({"error": "Internal server error"}),
         }
+
+
+def _handle_dashboard(event, headers, request_id):
+    # API Gateway JWT authorizer validates the token before Lambda runs.
+    # Claims are already decoded and injected into the request context —
+    # no token verification needed here.
+    claims = (
+        event.get("requestContext", {})
+             .get("authorizer", {})
+             .get("jwt", {})
+             .get("claims", {})
+    )
+    email = claims.get("email", "unknown")
+
+    logger.info(json.dumps({
+        "action": "dashboard_access",
+        "email": email,
+        "request_id": request_id,
+    }))
+
+    return {
+        "statusCode": 200,
+        "headers": headers,
+        "body": json.dumps({
+            "message": f"Welcome, {email}",
+            "email": email,
+        }),
+    }

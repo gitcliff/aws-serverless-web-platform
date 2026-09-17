@@ -1,12 +1,15 @@
 # ==============================================================================
 # AWS COST ANOMALY DETECTION
-# Detects unexpected spend spikes per AWS service and alerts via SNS.
+# Detects unexpected total account spend spikes and alerts via SNS.
+# OVERALL type has no per-account creation limit (DIMENSIONAL is capped at 2).
 # ==============================================================================
 
 resource "aws_ce_anomaly_monitor" "service_monitor" {
   name              = "${var.environment}-service-cost-anomaly-monitor"
   monitor_type      = "DIMENSIONAL"
-  monitor_dimension = "SERVICE"
+  monitor_dimension = "LINKED_ACCOUNT"
+  # LINKED_ACCOUNT has a separate quota from SERVICE monitors (capped at 2).
+  # Monitors total spend anomalies across this account.
 }
 
 resource "aws_ce_anomaly_subscription" "alerts" {
