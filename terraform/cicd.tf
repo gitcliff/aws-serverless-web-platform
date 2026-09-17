@@ -322,6 +322,7 @@ data "aws_iam_policy_document" "github_actions_permissions_iam_kms" {
     effect = "Allow"
     actions = [
       "iam:GetRole",
+      "iam:GetRolePolicy",
       "iam:GetPolicy",
       "iam:GetPolicyVersion",
       "iam:ListRolePolicies",
