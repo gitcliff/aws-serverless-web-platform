@@ -37,11 +37,16 @@ data "aws_iam_policy_document" "github_actions_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Scope to this specific repo — no other GitHub repo can assume this role
+    # Scope to this specific repo — no other GitHub repo can assume this role.
+    # GitHub's OIDC sub claim now includes numeric IDs (e.g. owner@ID/repo@ID),
+    # so both the legacy and current formats must be accepted.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:gitcliff/aws-serverless-web-platform:*"]
+      values = [
+        "repo:gitcliff/aws-serverless-web-platform:*",
+        "repo:gitcliff@*/aws-serverless-web-platform@*:*",
+      ]
     }
   }
 }
@@ -111,6 +116,7 @@ data "aws_iam_policy_document" "lambda_boundary" {
 
 # ─── CI/CD permissions ────────────────────────────────────────────────────────
 
+# ─── Policy 1 of 3: storage + compute (S3, Lambda, DynamoDB, SQS) ─────────────
 data "aws_iam_policy_document" "github_actions_permissions" {
   # Terraform remote state — scoped to the state bucket only
   statement {
@@ -141,6 +147,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:PutBucketPolicy",
       "s3:DeleteBucketPolicy",
       "s3:GetBucketAcl",
+      "s3:GetAccelerateConfiguration",
       "s3:PutBucketAcl",
       "s3:GetBucketVersioning",
       "s3:PutBucketVersioning",
@@ -166,12 +173,19 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "s3:PutBucketCORS",
       "s3:GetBucketWebsite",
       "s3:PutBucketWebsite",
+      "s3:HeadObject",
+      "s3:GetBucketNotification",
+      "s3:GetBucketRequestPayment",
+      "s3:GetBucketObjectLockConfiguration",
+      "s3:GetReplicationConfiguration",
     ]
     resources = [
       aws_s3_bucket.first_bucket.arn,
       "${aws_s3_bucket.first_bucket.arn}/*",
       aws_s3_bucket.access_logs.arn,
       "${aws_s3_bucket.access_logs.arn}/*",
+      aws_s3_bucket.canary_artifacts.arn,
+      "${aws_s3_bucket.canary_artifacts.arn}/*",
     ]
   }
 
@@ -182,6 +196,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions = [
       "lambda:GetFunction",
       "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionCodeSigningConfig",
       "lambda:CreateFunction",
       "lambda:UpdateFunctionCode",
       "lambda:UpdateFunctionConfiguration",
@@ -230,10 +245,38 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-  # IAM — scoped to Lambda execution role and its policies only
+  # SQS — scoped to the Lambda dead-letter queue
+  statement {
+    sid    = "SQSLambdaDLQ"
+    effect = "Allow"
+    actions = [
+      "sqs:CreateQueue",
+      "sqs:DeleteQueue",
+      "sqs:GetQueueAttributes",
+      "sqs:SetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:TagQueue",
+      "sqs:UntagQueue",
+      "sqs:ListQueueTags",
+    ]
+    resources = [aws_sqs_queue.lambda_dlq.arn]
+  }
+
+  # ListQueues does not support resource-level restrictions
+  statement {
+    sid       = "SQSList"
+    effect    = "Allow"
+    actions   = ["sqs:ListQueues"]
+    resources = ["*"]
+  }
+}
+
+# ─── Policy 2 of 3: IAM + KMS ─────────────────────────────────────────────────
+data "aws_iam_policy_document" "github_actions_permissions_iam_kms" {
+  # IAM — scoped to project service roles and their policies only
   # Does NOT include github-actions-* to prevent self-escalation
   statement {
-    sid    = "IAMLambdaResources"
+    sid    = "IAMServiceRoles"
     effect = "Allow"
     actions = [
       "iam:CreateRole",
@@ -266,6 +309,8 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-${var.lambda_execution_role}",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-dynamodb-backup-role",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.environment}-synthetics-canary-role",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.environment}-${var.lambda_cloudwatch_dynamoDB_policy_name}",
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/lambda-permissions-boundary",
     ]
@@ -277,6 +322,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     effect = "Allow"
     actions = [
       "iam:GetRole",
+      "iam:GetRolePolicy",
       "iam:GetPolicy",
       "iam:GetPolicyVersion",
       "iam:ListRolePolicies",
@@ -295,11 +341,14 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     sid    = "IAMOIDCProvider"
     effect = "Allow"
     actions = [
+      "iam:CreateOpenIDConnectProvider",
       "iam:GetOpenIDConnectProvider",
+      "iam:DeleteOpenIDConnectProvider",
       "iam:UpdateOpenIDConnectProviderThumbprint",
       "iam:AddClientIDToOpenIDConnectProvider",
       "iam:RemoveClientIDFromOpenIDConnectProvider",
       "iam:TagOpenIDConnectProvider",
+      "iam:UntagOpenIDConnectProvider",
     ]
     resources = [
       "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com",
@@ -321,6 +370,52 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     resources = ["*"]
   }
 
+  # KMS — create/list operations require wildcard (no resource-level support)
+  statement {
+    sid    = "KMSGlobalOps"
+    effect = "Allow"
+    actions = [
+      "kms:CreateKey",
+      "kms:ListAliases",
+      "kms:ListKeys",
+    ]
+    resources = ["*"]
+  }
+
+  # KMS — full lifecycle management of the project CMK
+  statement {
+    sid    = "KMSProjectKeyOps"
+    effect = "Allow"
+    actions = [
+      "kms:DescribeKey",
+      "kms:GetKeyPolicy",
+      "kms:GetKeyRotationStatus",
+      "kms:PutKeyPolicy",
+      "kms:EnableKeyRotation",
+      "kms:ScheduleKeyDeletion",
+      "kms:CancelKeyDeletion",
+      "kms:UpdateKeyDescription",
+      "kms:ListResourceTags",
+      "kms:TagResource",
+      "kms:UntagResource",
+      "kms:GenerateDataKey",
+      "kms:GenerateDataKeyWithoutPlaintext",
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:ReEncrypt*",
+      "kms:CreateAlias",
+      "kms:DeleteAlias",
+      "kms:UpdateAlias",
+    ]
+    resources = [
+      aws_kms_key.project.arn,
+      "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/${var.environment}-project-key",
+    ]
+  }
+}
+
+# ─── Policy 3 of 3: networking + observability ─────────────────────────────────
+data "aws_iam_policy_document" "github_actions_permissions_infra" {
   # CloudFront — scoped to this distribution
   statement {
     sid    = "CloudFront"
@@ -369,6 +464,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "wafv2:ListTagsForResource",
       "wafv2:TagResource",
       "wafv2:UntagResource",
+      "wafv2:CheckCapacity",
     ]
     resources = ["*"]
   }
@@ -441,14 +537,14 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     actions = [
       "logs:CreateLogGroup",
       "logs:DeleteLogGroup",
-      "logs:DescribeLogGroups",
       "logs:PutRetentionPolicy",
       "logs:DeleteRetentionPolicy",
-      "logs:ListTagsForResource",
       "logs:TagResource",
       "logs:UntagResource",
       "logs:ListTagsLogGroup",
       "logs:TagLogGroup",
+      "logs:AssociateKmsKey",
+      "logs:DisassociateKmsKey",
     ]
     resources = [
       "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.environment}-${var.lambda_function_name}:*",
@@ -463,6 +559,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     effect = "Allow"
     actions = [
       "cloudwatch:PutMetricAlarm",
+      "cloudwatch:PutCompositeAlarm",
       "cloudwatch:DeleteAlarms",
       "cloudwatch:ListTagsForResource",
       "cloudwatch:TagResource",
@@ -492,6 +589,7 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
     resources = [
       "arn:aws:cloudwatch::${data.aws_caller_identity.current.account_id}:dashboard/${var.environment}-*",
+      "arn:aws:cloudwatch::${data.aws_caller_identity.current.account_id}:dashboard/Serverless-App-Operations",
     ]
   }
 
@@ -526,93 +624,129 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
   }
 
-  # KMS — create/list operations require wildcard (no resource-level support)
+  # Route 53 Domains — manage the registered domain
   statement {
-    sid    = "KMSGlobalOps"
+    sid    = "Route53Domains"
     effect = "Allow"
     actions = [
-      "kms:CreateKey",
-      "kms:ListAliases",
-      "kms:ListKeys",
+      "route53domains:GetDomainDetail",
+      "route53domains:GetOperationDetail",
+      "route53domains:UpdateDomainNameservers",
+      "route53domains:ListTagsForDomain",
+      "route53domains:UpdateTagsForDomain",
+      "route53domains:DeleteTagsForDomain",
+      "route53domains:ListOperations",
     ]
-    resources = ["*"]
+    resources = ["*"] # Route 53 Domains does not support resource-level restrictions
   }
 
-  # KMS — full lifecycle management of the project CMK
+  # AWS Backup — vault, plan, and selection for DynamoDB
   statement {
-    sid    = "KMSProjectKeyOps"
+    sid    = "Backup"
     effect = "Allow"
     actions = [
-      "kms:DescribeKey",
-      "kms:GetKeyPolicy",
-      "kms:GetKeyRotationStatus",
-      "kms:PutKeyPolicy",
-      "kms:EnableKeyRotation",
-      "kms:ScheduleKeyDeletion",
-      "kms:CancelKeyDeletion",
-      "kms:UpdateKeyDescription",
-      "kms:ListResourceTags",
-      "kms:TagResource",
-      "kms:UntagResource",
-      "kms:GenerateDataKey",
-      "kms:GenerateDataKeyWithoutPlaintext",
-      "kms:Decrypt",
-      "kms:Encrypt",
-      "kms:ReEncrypt*",
-      "kms:CreateAlias",
-      "kms:DeleteAlias",
-      "kms:UpdateAlias",
+      "backup:DescribeBackupVault",
+      "backup:CreateBackupVault",
+      "backup:DeleteBackupVault",
+      "backup:GetBackupPlan",
+      "backup:CreateBackupPlan",
+      "backup:UpdateBackupPlan",
+      "backup:DeleteBackupPlan",
+      "backup:GetBackupSelection",
+      "backup:CreateBackupSelection",
+      "backup:DeleteBackupSelection",
+      "backup:ListTags",
+      "backup:TagResource",
+      "backup:UntagResource",
     ]
     resources = [
-      aws_kms_key.project.arn,
-      "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/${var.environment}-project-key",
+      "arn:aws:backup:${var.aws_region}:${data.aws_caller_identity.current.account_id}:backup-vault:${var.environment}-*",
+      "arn:aws:backup:${var.aws_region}:${data.aws_caller_identity.current.account_id}:backup-plan:*",
     ]
   }
 
-  # SQS — scoped to the Lambda dead-letter queue
+  # Synthetics — canary health checks
   statement {
-    sid    = "SQSLambdaDLQ"
+    sid    = "Synthetics"
     effect = "Allow"
     actions = [
-      "sqs:CreateQueue",
-      "sqs:DeleteQueue",
-      "sqs:GetQueueAttributes",
-      "sqs:SetQueueAttributes",
-      "sqs:GetQueueUrl",
-      "sqs:TagQueue",
-      "sqs:UntagQueue",
-      "sqs:ListQueueTags",
+      "synthetics:GetCanary",
+      "synthetics:CreateCanary",
+      "synthetics:UpdateCanary",
+      "synthetics:DeleteCanary",
+      "synthetics:StartCanary",
+      "synthetics:StopCanary",
+      "synthetics:DescribeCanaries",
+      "synthetics:ListTagsForResource",
+      "synthetics:TagResource",
+      "synthetics:UntagResource",
     ]
-    resources = [aws_sqs_queue.lambda_dlq.arn]
+    resources = ["*"] # Synthetics does not support resource-level restrictions for most actions
   }
+}
 
-  # ListQueues does not support resource-level restrictions
+data "aws_iam_policy_document" "github_actions_terraform_read" {
+  # DescribeLogGroups is a list API with no resource-level support — must use "*".
+  # ListTagsForResource is also here because the Terraform AWS provider passes
+  # log group ARNs in a format (with or without trailing ":*") that may not
+  # match the scoped ARNs in CloudWatchLogs, so "*" is the safe scope.
   statement {
-    sid       = "SQSList"
-    effect    = "Allow"
-    actions   = ["sqs:ListQueues"]
+    sid    = "ReadCloudWatchLogGroups"
+    effect = "Allow"
+
+    actions = [
+      "logs:DescribeLogGroups",
+      "logs:ListTagsForResource",
+    ]
     resources = ["*"]
   }
+}
+
+resource "aws_iam_role_policy" "github_actions_terraform_read" {
+  role   = aws_iam_role.github_actions.name
+  policy = data.aws_iam_policy_document.github_actions_terraform_read.json
 }
 
 # ─── Role + policy attachment ─────────────────────────────────────────────────
 
 resource "aws_iam_role" "github_actions" {
   name                 = "github-actions-deploy"
-  description          = "Assumed by GitHub Actions via OIDC — no static credentials required"
+  description          = "Assumed by GitHub Actions via OIDC, no static credentials required"
   assume_role_policy   = data.aws_iam_policy_document.github_actions_trust.json
   max_session_duration = 3600 # 1-hour cap per workflow run
 }
 
 resource "aws_iam_policy" "github_actions_deploy" {
   name        = "github-actions-deploy-policy"
-  description = "Permissions for GitHub Actions CI/CD deployments"
+  description = "Permissions for GitHub Actions CI/CD deployments: storage and compute"
   policy      = data.aws_iam_policy_document.github_actions_permissions.json
+}
+
+resource "aws_iam_policy" "github_actions_iam_kms" {
+  name        = "github-actions-iam-kms-policy"
+  description = "Permissions for GitHub Actions CI/CD deployments: IAM and KMS"
+  policy      = data.aws_iam_policy_document.github_actions_permissions_iam_kms.json
+}
+
+resource "aws_iam_policy" "github_actions_infra" {
+  name        = "github-actions-infra-policy"
+  description = "Permissions for GitHub Actions CI/CD deployments: networking and observability"
+  policy      = data.aws_iam_policy_document.github_actions_permissions_infra.json
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions" {
   role       = aws_iam_role.github_actions.name
   policy_arn = aws_iam_policy.github_actions_deploy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_iam_kms" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_iam_kms.arn
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_infra" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_infra.arn
 }
 
 output "github_actions_role_arn" {

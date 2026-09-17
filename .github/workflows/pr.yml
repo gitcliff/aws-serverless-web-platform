@@ -121,8 +121,10 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
-        id: plan
+        id: plan 
         working-directory: terraform
+        env:
+          TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
         # pipefail ensures a non-zero terraform exit code isn't swallowed by tee
         run: |
           set -o pipefail

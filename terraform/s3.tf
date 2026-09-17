@@ -1,6 +1,6 @@
 # S3 bucket for static website hosting
 resource "aws_s3_bucket" "first_bucket" {
-  bucket = var.bucket_name
+  bucket = "${var.bucket_name}-${data.aws_caller_identity.current.account_id}"
   tags = {
     Name = var.bucket_tag
   }

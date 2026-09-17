@@ -54,5 +54,5 @@ resource "aws_lambda_permission" "api_gw_permission" {
   function_name = aws_lambda_function.backend_logic.function_name
   qualifier     = aws_lambda_alias.live.name
   principal     = local.api_gateway_lambda_permission_principal
-  source_arn    = "${aws_apigatewayv2_api.http_api.arn}/*/*"
+  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
 }
