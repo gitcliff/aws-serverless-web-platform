@@ -131,7 +131,6 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │  └── VisitorCount (EMF — emitted from Lambda, no extra SDK)              │
 │                                                                          │
 │  Alarms (11 total)  ───────  CloudWatch → SNS → Email                    │
-│  Cost       │ Anomaly Detection: overall account, ≥50% AND ≥$10 spend    │
 │  Perimeter  │ WAF blocked requests > 100 / 5 min                         │
 │  CDN        │ CloudFront 5xx rate > 1 %                                  │
 │             │ CloudFront 4xx rate > 5 %                                  │
@@ -142,7 +141,7 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │             │ Lambda p95 duration > 3 000 ms                             │
 │  Data       │ DynamoDB system errors ≥ 1                                 │
 │             │ DynamoDB UpdateItem avg latency > 50 ms                    │
-│  Synthetic  │ Canary SuccessPercent < 100 (every 15 min health check)    │
+│  Synthetic  │ Canary SuccessPercent < 100 (every 5 min health check)     │
 │                                                                          │
 │  SLOs (composite)  ────────  CloudWatch Composite Alarms                 │
 │  ├── Availability SLO: API errors AND Lambda errors firing together      │
