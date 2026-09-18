@@ -142,7 +142,7 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │             │ Lambda p95 duration > 3 000 ms                             │
 │  Data       │ DynamoDB system errors ≥ 1                                 │
 │             │ DynamoDB UpdateItem avg latency > 50 ms                    │
-│  Synthetic  │ Canary SuccessPercent < 100 (every 5 min health check)     │
+│  Synthetic  │ Canary SuccessPercent < 100 (every 15 min health check)    │
 │                                                                          │
 │  SLOs (composite)  ────────  CloudWatch Composite Alarms                 │
 │  ├── Availability SLO: API errors AND Lambda errors firing together      │
@@ -203,7 +203,7 @@ graph LR
         XRay[AWS X-Ray\nTraces]
         CWL[CloudWatch Logs\nStructured JSON]
         CWM[CloudWatch Metrics\n11 Alarms]
-        Canary[Synthetics Canary\nevery 5 min]
+        Canary[Synthetics Canary\nevery 15 min]
         SNS[SNS → Email]
         Dash[Dashboard\n8 widgets]
         CostAnomaly[Cost Anomaly Detection\nservice-level, ≥50% + ≥$10]
@@ -440,7 +440,7 @@ This populates the `VisitorCounter/Application` namespace with a `VisitorCount` 
 
 ### Pillar 4 — Synthetic Monitoring (CloudWatch Synthetics)
 
-A NodeJS canary runs **every 5 minutes** from the AWS infrastructure (not from a developer's machine) and:
+A NodeJS canary runs **every 15 minutes** from the AWS infrastructure (not from a developer's machine) and:
 
 1. Makes an `HTTPS GET` to `https://cliffworld.link/api/`
 2. Asserts the response is `HTTP 200`
@@ -448,18 +448,18 @@ A NodeJS canary runs **every 5 minutes** from the AWS infrastructure (not from a
 
 This detects failures that alarms cannot — scenarios where all internal metrics look healthy but end-to-end requests are silently broken (e.g., a WAF rule blocking the `/api/` path, a bad CloudFront behaviour, or a broken Lambda alias pointer).
 
-A `SuccessPercent < 100` metric fires the `canary-failure` alarm, which pages via SNS.
+A `SuccessPercent < 100` alarm fires and pages via SNS.
 
-### SLO Composite Alarms
+### SLO Alarms
 
-Two composite alarms aggregate child alarms into formal SLO breach signals:
+Two SLO signals measure formal breach conditions:
 
-| SLO          | Target       | Composite Rule                                                      |
-| :----------- | :----------- | :------------------------------------------------------------------ |
-| Availability | 99.9% uptime | `API_5xx_alarm AND Lambda_error_alarm` (both firing simultaneously) |
-| Latency      | p95 < 500 ms | `API_p95_latency_alarm AND API_avg_latency_alarm`                   |
+| SLO          | Target       | Implementation                                                                                           |
+| :----------- | :----------- | :------------------------------------------------------------------------------------------------------- |
+| Availability | 99.9% uptime | Metric math alarm: `IF(m_count > 0, (m_errors / m_count) * 100, 0)` — fires when error rate > 0.1%      |
+| Latency      | p95 < 500 ms | Composite alarm: `API_p95_latency_alarm OR API_avg_latency_alarm` — fires when either threshold breaches |
 
-Requiring **both** child alarms to fire simultaneously before signalling SLO breach reduces false positives from transient single-tier flaps. SLO alarms trigger the same SNS topic as operational alarms.
+The availability SLO uses metric math directly on API Gateway counters — the `IF()` guard prevents false positives when there is zero traffic. The latency SLO composite fires if **either** the p95 or the average latency threshold is breached. Both SLO alarms trigger the same SNS topic as operational alarms.
 
 ---
 
@@ -509,7 +509,7 @@ The **Serverless-App-Operations** dashboard provides a single-pane view across a
 | **aws-xray-sdk `patch_all()`**                     | Manual X-Ray subsegment annotations     | `patch_all()` wraps botocore at import time, so every boto3 call (DynamoDB, etc.) automatically creates a named subsegment in X-Ray — zero per-call instrumentation code needed. `context_missing="LOG_ERROR"` makes the SDK safe in test environments where no Lambda context exists.                                                           |
 | **EMF for custom metrics (no PutMetricData)**      | `cloudwatch.put_metric_data()` API call | EMF (Embedded Metric Format) emits metrics as a structured JSON `print()` line — the CloudWatch Logs agent extracts them automatically. No extra IAM permission (`cloudwatch:PutMetricData`) needed, no extra latency for a synchronous API call.                                                                                                |
 | **Correlation ID via `x-amzn-trace-id`**           | Custom UUID header                      | The X-Ray trace ID (`x-amzn-trace-id`) is already injected by Lambda's runtime into the event headers. Reusing it avoids generating a second ID and links Lambda logs directly to X-Ray traces without string-matching.                                                                                                                          |
-| **CloudWatch Synthetics Canary**                   | Uptime Robot / Pingdom / external SaaS  | Native AWS service: canary results appear in the same CloudWatch dashboard alongside operational alarms, uses the same SNS topic for alerts, and doesn't require an external account or credentials. Costs ~$10/month at 5-minute intervals — the only observable cost increase from the observability additions.                                |
+| **CloudWatch Synthetics Canary**                   | Uptime Robot / Pingdom / external SaaS  | Native AWS service: canary results appear in the same CloudWatch dashboard alongside operational alarms, uses the same SNS topic for alerts, and doesn't require an external account or credentials. Runs every 15 minutes (~$3.46/month) — the only observable cost increase from the observability additions.                                |
 | **SLO Composite Alarms (AND logic)**               | Single metric threshold                 | Requiring two correlated child alarms to fire simultaneously reduces false positives from transient single-tier flaps (e.g., a brief Lambda cold-start spike that doesn't represent a real availability incident). Composite alarms have no additional per-evaluation cost.                                                                      |
 | **GitHub Actions OIDC (no stored keys)**           | IAM user access key + GitHub Secret     | OIDC issues temporary STS tokens per-workflow-run. There is no long-lived credential to rotate, leak, or revoke. The IAM role trust policy is scoped to a specific GitHub org/repo/branch, so a compromised token from another repo cannot assume it.                                                                                            |
 | **Terraform `null_resource` for Lambda packaging** | Committed `backend/package/` directory  | The `null_resource` with `local-exec` runs `pip install` only when `requirements.txt` or `lambda_function.py` change (content-hash triggers). This keeps compiled packages out of git while making the build self-contained in Terraform for local development. CI workflows run `make build-lambda` explicitly before `terraform plan`/`apply`. |
@@ -532,13 +532,13 @@ All services use pay-per-request or free-tier pricing.
 | CloudFront            | $0.00       | ~$0.01                | 1 TB free data transfer/month                   |
 | Route 53              | $0.50       | $0.50                 | $0.50/month per hosted zone                     |
 | WAF                   | ~$7.00      | ~$7.00                | $5/WebACL + $1/rule group; dominates cost       |
-| CloudWatch Synthetics | ~$10.25     | ~$10.25               | 8,640 runs/month × $0.0012; first 100 free      |
+| CloudWatch Synthetics | ~$3.46      | ~$3.46                | 2,880 runs/month × $0.0012; first 100 free      |
 | CloudWatch alarms     | ~$0.30      | ~$0.30                | 11 alarms × $0.10/alarm (first 10 free)         |
 | Cognito               | $0.00       | $0.00                 | First 50,000 MAUs free; at this scale always $0 |
 | Cost Anomaly          | $0.00       | $0.00                 | No charge for anomaly monitors or subscriptions |
-| **Total**             | **~$18/mo** | **~$18/mo**           | Flat cost — not traffic-dependent at this scale |
+| **Total**             | **~$11/mo** | **~$11/mo**           | Flat cost — not traffic-dependent at this scale |
 
-> **WAF and Synthetics dominate the cost.** Removing WAF saves ~$7/month but loses edge-level OWASP protection. Increasing the Synthetics interval to 15 minutes reduces canary cost to ~$3.50/month. For a portfolio project, these are deliberate trade-offs for production realism.
+> **WAF dominates the cost.** Removing WAF saves ~$7/month but loses edge-level OWASP protection. The Synthetics canary runs every 15 minutes (~$3.46/month). For a portfolio project, these are deliberate trade-offs for production realism.
 
 ---
 
@@ -571,6 +571,7 @@ terraform/
   lambda.tf                   # Lambda function, null_resource pip build, alias
   dynamoDB.tf                 # DynamoDB table (on-demand, PITR, encryption)
   cognito.tf                  # Cognito User Pool, App Client, Hosted UI domain
+  kms.tf                      # Customer-managed KMS key for S3, logs, Lambda env vars
   cost_anomaly.tf             # Cost Anomaly Monitor + SNS subscription
   cloudwatch_sns.tf           # SNS topic + 11 CloudWatch alarms across 5 tiers
   dashboard.tf                # 8-widget CloudWatch operational dashboard
