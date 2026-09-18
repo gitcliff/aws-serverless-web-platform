@@ -47,6 +47,30 @@ resource "aws_apigatewayv2_route" "api_route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
 
+# JWT authorizer validates Cognito-issued tokens before the request reaches Lambda.
+# The token is expected as: Authorization: Bearer <access_token>
+resource "aws_apigatewayv2_authorizer" "cognito_jwt" {
+  api_id           = aws_apigatewayv2_api.http_api.id
+  authorizer_type  = "JWT"
+  name             = "cognito-jwt-authorizer"
+  identity_sources = ["$request.header.Authorization"]
+
+  jwt_configuration {
+    audience = [aws_cognito_user_pool_client.spa_client.id]
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
+  }
+}
+
+# Explicit protected route — matched before the ANY /api/{proxy+} catch-all.
+# API Gateway returns 401 if the JWT is absent or invalid; Lambda is never invoked.
+resource "aws_apigatewayv2_route" "protected_api_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /api/dashboard"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
+}
+
 # Grant API Gateway invoke rights on the alias specifically (not on $LATEST)
 resource "aws_lambda_permission" "api_gw_permission" {
   statement_id  = "AllowAPIGatewayInvoke"

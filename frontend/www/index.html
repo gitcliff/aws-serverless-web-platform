@@ -9,9 +9,18 @@
 </head>
 <body>
     <div class="container">
+
+        <nav class="nav-bar">
+            <span class="nav-brand">cliffworld.link</span>
+            <div class="nav-actions">
+                <button id="login-btn" class="btn btn-auth">Login</button>
+                <button id="logout-btn" class="btn btn-auth" style="display:none">Logout</button>
+            </div>
+        </nav>
+
         <header class="hero">
             <h1 class="hero-title">AWS Multi-Tier Serverless Platform</h1>
-            <p class="hero-subtitle">Route 53 &middot; CloudFront + WAF &middot; API Gateway &middot; Lambda &middot; DynamoDB</p>
+            <p class="hero-subtitle">Route 53 &middot; CloudFront + WAF &middot; Cognito &middot; API Gateway &middot; Lambda &middot; DynamoDB</p>
         </header>
 
         <main class="content">
@@ -35,9 +44,15 @@
                 </div>
 
                 <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <h3>Amazon Cognito</h3>
+                    <p>User Pool with hosted UI; authorization code + PKCE flow; JWT authorizer on API Gateway</p>
+                </div>
+
+                <div class="feature-card">
                     <div class="feature-icon">⚡</div>
                     <h3>API Gateway v2</h3>
-                    <p>HTTP API with throttling — 20 req/s burst 50; routes <code>ANY /api/{proxy+}</code> to Lambda</p>
+                    <p>HTTP API with throttling — 20 req/s burst 50; public and JWT-protected routes</p>
                 </div>
 
                 <div class="feature-card">
@@ -64,6 +79,25 @@
                 <div class="status-indicator">
                     <div class="status-dot"></div>
                     <span>API Status: <span id="status">Connecting</span></span>
+                </div>
+            </section>
+
+            <section id="dashboard-section" class="dashboard-section" style="display:none">
+                <h2>Protected Dashboard</h2>
+                <p class="demo-description">This section is only visible after authenticating with Cognito. The API call includes your JWT access token.</p>
+                <div class="dashboard-card">
+                    <div class="dashboard-row">
+                        <span class="dashboard-label">Signed in as</span>
+                        <span id="dashboard-email" class="dashboard-value">—</span>
+                    </div>
+                    <div class="dashboard-row">
+                        <span class="dashboard-label">API response</span>
+                        <span id="dashboard-message" class="dashboard-value">—</span>
+                    </div>
+                    <div class="dashboard-row">
+                        <span class="dashboard-label">Route</span>
+                        <span class="dashboard-value"><code>GET /api/dashboard</code> — JWT authorizer</span>
+                    </div>
                 </div>
             </section>
 

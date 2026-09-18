@@ -7,13 +7,15 @@
 ![DynamoDB](https://img.shields.io/badge/Database-DynamoDB-blue)
 ![CloudFront](https://img.shields.io/badge/CDN-CloudFront-orange)
 ![WAF](https://img.shields.io/badge/Security-AWS%20WAF-red)
+![Cognito](https://img.shields.io/badge/Auth-Amazon%20Cognito-yellow)
 ![X-Ray](https://img.shields.io/badge/Tracing-AWS%20X--Ray-purple)
 ![Synthetics](https://img.shields.io/badge/Monitoring-Synthetics%20Canary-green)
+![Cost Anomaly](https://img.shields.io/badge/FinOps-Cost%20Anomaly%20Detection-blue)
 ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20OIDC-black)
 
 **Live demo:** [cliffworld.link](https://cliffworld.link)
 
-> A production-grade serverless web application on AWS, demonstrating six architectural tiers: edge security, CDN, API routing, serverless compute, managed data, and full-stack observability. Every resource is defined in Terraform and deployed via GitHub Actions OIDC — no long-lived AWS credentials anywhere in the pipeline.
+> A production-grade serverless web application on AWS, demonstrating six architectural tiers: edge security, CDN, API routing, serverless compute, managed data, and full-stack observability — with Cognito-based user authentication and automated cost anomaly detection. Every resource is defined in Terraform and deployed via GitHub Actions OIDC — no long-lived AWS credentials anywhere in the pipeline.
 
 ---
 
@@ -22,7 +24,9 @@
 - [Architecture Overview](#architecture-overview)
 - [Request Flow — Step by Step](#request-flow--step-by-step)
 - [Security Architecture](#security-architecture)
+- [Authentication](#authentication)
 - [Observability Architecture](#observability-architecture)
+- [Cost Anomaly Detection](#cost-anomaly-detection)
 - [Architectural Decisions](#architectural-decisions)
 - [Cost Estimate](#cost-estimate)
 - [Repository Layout](#repository-layout)
@@ -34,7 +38,7 @@
 
 ## Architecture Diagram
 
-![AWS Serverless Web Platform — Production Architecture](./architecture.drawio.png)
+![AWS Serverless Web Platform — Production Architecture](./servless.drawio.png)
 
 ## Architecture Overview
 
@@ -69,7 +73,10 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │  ├── No public access      │      │  ├── Throttle: 20 req/s steady       │
 │  ├── OAC + SigV4 signing   │      │  ├── Burst:    50 concurrent         │
 │  └── TTL: 3600s (cached)   │      │  ├── Access logs → CloudWatch Logs   │
-└────────────────────────────┘      │  └── TTL: 0 (no caching)             │
+└────────────────────────────┘      │  ├── TTL: 0 (no caching)             │
+                                    │  ├── JWT Authorizer ← Cognito        │
+                                    │  │   GET /api/dashboard (protected)  │
+                                    │  └── ANY /api/{proxy+} (public)      │
                                     └───────────────┬──────────────────────┘
                                                     │
                                     ┌───────────────▼──────────────────────┐
@@ -91,6 +98,19 @@ The application is structured as six discrete tiers. Each tier has a single resp
                                     │  ├── Encryption at rest (AES-256)    │
                                     │  └── Point-in-time recovery (PITR)   │
                                     └──────────────────────────────────────┘
+```
+
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  TIER 7 — AUTHENTICATION                                                 │
+│  Amazon Cognito                                                          │
+│  ├── User Pool: email login, email verification, password policy         │
+│  ├── App Client: public SPA client, authorization code + PKCE            │
+│  ├── Hosted UI: https://{env}-cliffworld.auth.us-east-1.amazoncognito.com│
+│  └── JWT Authorizer wired to API Gateway for GET /api/dashboard          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ```
@@ -160,7 +180,15 @@ graph LR
 
     subgraph "Tier 3B — API"
         APIGW[API Gateway v2\n20 req/s throttle]
+        JWTAuth[JWT Authorizer\nGET /api/dashboard]
+        APIGW --- JWTAuth
     end
+
+    subgraph "Tier 7 — Auth"
+        Cognito[Amazon Cognito\nUser Pool + Hosted UI]
+    end
+
+    Cognito -->|issues JWT tokens| JWTAuth
 
     subgraph "Tier 4 — Compute"
         Lambda[Lambda Python 3.12\nX-Ray Active\nEMF metrics\nCorrelation IDs]
@@ -174,10 +202,13 @@ graph LR
         XRay[AWS X-Ray\nTraces]
         CWL[CloudWatch Logs\nStructured JSON]
         CWM[CloudWatch Metrics\n11 Alarms]
-        Canary[Synthetics Canary\nevery 5 min]
+        Canary[Synthetics Canary\nevery 15 min]
         SNS[SNS → Email]
         Dash[Dashboard\n8 widgets]
+        CostAnomaly[Cost Anomaly Detection\nservice-level, ≥50% + ≥$10]
     end
+
+    CostAnomaly -->|anomaly alert| SNS
 
     APIGW --> Lambda
     Lambda -->|Atomic increment| DDB
@@ -267,6 +298,37 @@ Security is applied in layers. Each layer independently blocks threats before th
 | No long-lived AWS keys      | GitHub Actions OIDC — temporary STS credentials per job              | Zero credential leak surface; keys expire with the workflow run       |
 | Least-privilege Lambda role | IAM role grants only `dynamodb:UpdateItem`, `xray:Put*`, `logs:Put*` | Blast radius of a Lambda compromise is limited to one table operation |
 | Least-privilege CI/CD role  | OIDC role scoped to specific repo + branch conditions                | A compromised token can only deploy, not read secrets or modify IAM   |
+
+### Layer 7 — User Authentication (Cognito)
+
+| Control                        | Implementation                                                            | Why                                                                             |
+| :----------------------------- | :------------------------------------------------------------------------ | :------------------------------------------------------------------------------ |
+| User Pool                      | Email-based login, email auto-verification, 8+ char password policy      | Managed user directory; no custom auth logic to maintain                        |
+| Authorization Code + PKCE      | SPA uses `code_challenge` / `code_verifier` to prevent code interception  | Recommended OAuth2 flow for public SPAs — no client secret required             |
+| Cognito Hosted UI              | `https://{env}-cliffworld.auth.us-east-1.amazoncognito.com`              | Built-in signup/login/reset/MFA UI; no custom form code; handles email flows    |
+| API Gateway JWT Authorizer     | Validates Cognito-issued JWTs on `GET /api/dashboard` before Lambda runs  | Token validation happens at the gateway; invalid tokens never reach application |
+| Public routes unchanged        | `ANY /api/{proxy+}` (visitor counter) requires no token                   | Least-privilege surface: only routes that need auth have auth                   |
+| Token storage in sessionStorage | Tokens cleared on tab close                                              | Standard SPA pattern for public clients; scoped to the browsing session         |
+
+---
+
+## Authentication
+
+The dashboard section (`GET /api/dashboard`) is protected by Cognito JWT authentication:
+
+```
+1. User clicks Login → SPA generates PKCE code_verifier + code_challenge
+2. SPA redirects to Cognito Hosted UI with code_challenge
+3. User authenticates → Cognito redirects to https://cliffworld.link/callback?code=<auth_code>
+4. SPA exchanges auth_code + code_verifier for tokens via POST to Cognito /oauth2/token
+5. Access token stored in sessionStorage
+6. SPA calls GET /api/dashboard with Authorization: Bearer <access_token>
+7. API Gateway JWT Authorizer validates the token against Cognito public keys
+8. If valid → Lambda reads claims (email) and returns dashboard data
+9. If invalid/absent → API Gateway returns 401; Lambda is never invoked
+```
+
+**Public routes are unaffected.** The visitor counter (`GET /api/visitor`) continues to work without authentication.
 
 ---
 
@@ -377,7 +439,7 @@ This populates the `VisitorCounter/Application` namespace with a `VisitorCount` 
 
 ### Pillar 4 — Synthetic Monitoring (CloudWatch Synthetics)
 
-A NodeJS canary runs **every 5 minutes** from the AWS infrastructure (not from a developer's machine) and:
+A NodeJS canary runs **every 15 minutes** from the AWS infrastructure (not from a developer's machine) and:
 
 1. Makes an `HTTPS GET` to `https://cliffworld.link/api/`
 2. Asserts the response is `HTTP 200`
@@ -385,18 +447,33 @@ A NodeJS canary runs **every 5 minutes** from the AWS infrastructure (not from a
 
 This detects failures that alarms cannot — scenarios where all internal metrics look healthy but end-to-end requests are silently broken (e.g., a WAF rule blocking the `/api/` path, a bad CloudFront behaviour, or a broken Lambda alias pointer).
 
-A `SuccessPercent < 100` metric fires the `canary-failure` alarm, which pages via SNS.
+A `SuccessPercent < 100` alarm fires and pages via SNS.
 
-### SLO Composite Alarms
+### SLO Alarms
 
-Two composite alarms aggregate child alarms into formal SLO breach signals:
+Two SLO signals measure formal breach conditions:
 
-| SLO          | Target       | Composite Rule                                                      |
-| :----------- | :----------- | :------------------------------------------------------------------ |
-| Availability | 99.9% uptime | `API_5xx_alarm AND Lambda_error_alarm` (both firing simultaneously) |
-| Latency      | p95 < 500 ms | `API_p95_latency_alarm AND API_avg_latency_alarm`                   |
+| SLO          | Target       | Implementation                                                                                           |
+| :----------- | :----------- | :------------------------------------------------------------------------------------------------------- |
+| Availability | 99.9% uptime | Metric math alarm: `IF(m_count > 0, (m_errors / m_count) * 100, 0)` — fires when error rate > 0.1%      |
+| Latency      | p95 < 500 ms | Composite alarm: `API_p95_latency_alarm OR API_avg_latency_alarm` — fires when either threshold breaches |
 
-Requiring **both** child alarms to fire simultaneously before signalling SLO breach reduces false positives from transient single-tier flaps. SLO alarms trigger the same SNS topic as operational alarms.
+The availability SLO uses metric math directly on API Gateway counters — the `IF()` guard prevents false positives when there is zero traffic. The latency SLO composite fires if **either** the p95 or the average latency threshold is breached. Both SLO alarms trigger the same SNS topic as operational alarms.
+
+---
+
+## Cost Anomaly Detection
+
+AWS Cost Anomaly Detection monitors spend at the AWS service level and alerts via SNS when an anomaly is detected:
+
+| Setting              | Value                                               | Rationale                                                                                    |
+| :------------------- | :-------------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| Monitor type         | `DIMENSIONAL` / `LINKED_ACCOUNT`                    | Monitors total account spend; separate quota from `SERVICE` monitors (capped at 2)           |
+| Alert frequency      | `IMMEDIATE`                                         | Email as soon as an anomaly is confirmed — no daily digest delay                             |
+| Threshold expression | `≥ 50% AND ≥ $10 absolute impact`                  | Dual gate prevents alert fatigue from tiny-dollar percentage swings (e.g. $0.01 → $0.02)    |
+| Alert destination    | Existing `{env}-system-alerts-topic` SNS topic      | Single alert channel; same email subscription as CloudWatch alarms                           |
+
+---
 
 ### CloudWatch Dashboard
 
@@ -431,10 +508,13 @@ The **Serverless-App-Operations** dashboard provides a single-pane view across a
 | **aws-xray-sdk `patch_all()`**                     | Manual X-Ray subsegment annotations     | `patch_all()` wraps botocore at import time, so every boto3 call (DynamoDB, etc.) automatically creates a named subsegment in X-Ray — zero per-call instrumentation code needed. `context_missing="LOG_ERROR"` makes the SDK safe in test environments where no Lambda context exists.                                                           |
 | **EMF for custom metrics (no PutMetricData)**      | `cloudwatch.put_metric_data()` API call | EMF (Embedded Metric Format) emits metrics as a structured JSON `print()` line — the CloudWatch Logs agent extracts them automatically. No extra IAM permission (`cloudwatch:PutMetricData`) needed, no extra latency for a synchronous API call.                                                                                                |
 | **Correlation ID via `x-amzn-trace-id`**           | Custom UUID header                      | The X-Ray trace ID (`x-amzn-trace-id`) is already injected by Lambda's runtime into the event headers. Reusing it avoids generating a second ID and links Lambda logs directly to X-Ray traces without string-matching.                                                                                                                          |
-| **CloudWatch Synthetics Canary**                   | Uptime Robot / Pingdom / external SaaS  | Native AWS service: canary results appear in the same CloudWatch dashboard alongside operational alarms, uses the same SNS topic for alerts, and doesn't require an external account or credentials. Costs ~$10/month at 5-minute intervals — the only observable cost increase from the observability additions.                                |
+| **CloudWatch Synthetics Canary**                   | Uptime Robot / Pingdom / external SaaS  | Native AWS service: canary results appear in the same CloudWatch dashboard alongside operational alarms, uses the same SNS topic for alerts, and doesn't require an external account or credentials. Runs every 15 minutes (~$3.46/month) — the only observable cost increase from the observability additions.                                |
 | **SLO Composite Alarms (AND logic)**               | Single metric threshold                 | Requiring two correlated child alarms to fire simultaneously reduces false positives from transient single-tier flaps (e.g., a brief Lambda cold-start spike that doesn't represent a real availability incident). Composite alarms have no additional per-evaluation cost.                                                                      |
 | **GitHub Actions OIDC (no stored keys)**           | IAM user access key + GitHub Secret     | OIDC issues temporary STS tokens per-workflow-run. There is no long-lived credential to rotate, leak, or revoke. The IAM role trust policy is scoped to a specific GitHub org/repo/branch, so a compromised token from another repo cannot assume it.                                                                                            |
 | **Terraform `null_resource` for Lambda packaging** | Committed `backend/package/` directory  | The `null_resource` with `local-exec` runs `pip install` only when `requirements.txt` or `lambda_function.py` change (content-hash triggers). This keeps compiled packages out of git while making the build self-contained in Terraform for local development. CI workflows run `make build-lambda` explicitly before `terraform plan`/`apply`. |
+| **Cognito Hosted UI (prefix domain)**               | Custom login forms / Lambda authorizer  | Hosted UI handles signup, email verification, password reset, and MFA without any custom form code. Prefix domain (`{env}-cliffworld.auth.us-east-1.amazoncognito.com`) avoids a second ACM certificate. JWT authorizer in API Gateway validates tokens with zero Lambda code — invalid requests return 401 before Lambda is ever invoked. |
+| **Authorization Code + PKCE for SPA**               | Implicit flow / client credentials      | PKCE (Proof Key for Code Exchange) is the current IETF recommendation for public clients. It prevents authorization code interception attacks without requiring a client secret — appropriate for a JavaScript SPA where secrets can't be safely stored. |
+| **Cost Anomaly Detection (AND threshold)**          | Budget alerts / fixed dollar threshold  | Dual-gate threshold (`≥ 50% AND ≥ $10`) prevents two failure modes: (1) alert fatigue from tiny-dollar anomalies that are numerically large in percentage terms, (2) missing a genuine large-dollar spike that stays under a percentage ceiling. `DIMENSIONAL/SERVICE` monitor catches per-service breakouts invisible to account-level monitoring. |
 
 ---
 
@@ -451,11 +531,13 @@ All services use pay-per-request or free-tier pricing.
 | CloudFront            | $0.00       | ~$0.01                | 1 TB free data transfer/month                   |
 | Route 53              | $0.50       | $0.50                 | $0.50/month per hosted zone                     |
 | WAF                   | ~$7.00      | ~$7.00                | $5/WebACL + $1/rule group; dominates cost       |
-| CloudWatch Synthetics | ~$10.25     | ~$10.25               | 8,640 runs/month × $0.0012; first 100 free      |
+| CloudWatch Synthetics | ~$3.46      | ~$3.46                | 2,880 runs/month × $0.0012; first 100 free      |
 | CloudWatch alarms     | ~$0.30      | ~$0.30                | 11 alarms × $0.10/alarm (first 10 free)         |
-| **Total**             | **~$18/mo** | **~$18/mo**           | Flat cost — not traffic-dependent at this scale |
+| Cognito               | $0.00       | $0.00                 | First 50,000 MAUs free; at this scale always $0 |
+| Cost Anomaly          | $0.00       | $0.00                 | No charge for anomaly monitors or subscriptions |
+| **Total**             | **~$11/mo** | **~$11/mo**           | Flat cost — not traffic-dependent at this scale |
 
-> **WAF and Synthetics dominate the cost.** Removing WAF saves ~$7/month but loses edge-level OWASP protection. Increasing the Synthetics interval to 15 minutes reduces canary cost to ~$3.50/month. For a portfolio project, these are deliberate trade-offs for production realism.
+> **WAF dominates the cost.** Removing WAF saves ~$7/month but loses edge-level OWASP protection. The Synthetics canary runs every 15 minutes (~$3.46/month). For a portfolio project, these are deliberate trade-offs for production realism.
 
 ---
 
@@ -487,6 +569,9 @@ terraform/
   api_gw.tf                   # API Gateway v2 HTTP API, stage, integration, route
   lambda.tf                   # Lambda function, null_resource pip build, alias
   dynamoDB.tf                 # DynamoDB table (on-demand, PITR, encryption)
+  cognito.tf                  # Cognito User Pool, App Client, Hosted UI domain
+  kms.tf                      # Customer-managed KMS key for S3, logs, Lambda env vars
+  cost_anomaly.tf             # Cost Anomaly Monitor + SNS subscription
   cloudwatch_sns.tf           # SNS topic + 11 CloudWatch alarms across 5 tiers
   dashboard.tf                # 8-widget CloudWatch operational dashboard
   logging.tf                  # Log groups (Lambda, API GW) + S3 access log bucket

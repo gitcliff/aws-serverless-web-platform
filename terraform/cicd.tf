@@ -683,6 +683,41 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
     resources = ["*"] # Synthetics does not support resource-level restrictions for most actions
   }
 
+  # Cognito — manage user pools, clients, and the hosted UI domain
+  statement {
+    sid    = "CognitoUserPool"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:CreateUserPool",
+      "cognito-idp:DeleteUserPool",
+      "cognito-idp:DescribeUserPool",
+      "cognito-idp:UpdateUserPool",
+      "cognito-idp:CreateUserPoolClient",
+      "cognito-idp:DeleteUserPoolClient",
+      "cognito-idp:DescribeUserPoolClient",
+      "cognito-idp:UpdateUserPoolClient",
+      "cognito-idp:CreateUserPoolDomain",
+      "cognito-idp:DeleteUserPoolDomain",
+      "cognito-idp:GetUserPoolMfaConfig",
+      "cognito-idp:ListTagsForResource",
+      "cognito-idp:TagResource",
+      "cognito-idp:UntagResource",
+    ]
+    resources = [
+      "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/*",
+    ]
+  }
+
+  # DescribeUserPoolDomain does not support resource-level restrictions
+  statement {
+    sid    = "CognitoDescribeUserPoolDomain"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:DescribeUserPoolDomain",
+    ]
+    resources = ["*"]
+  }
+
   # Cost Explorer anomaly detection — resource-level restrictions not supported
   statement {
     sid    = "CostAnomalyDetection"

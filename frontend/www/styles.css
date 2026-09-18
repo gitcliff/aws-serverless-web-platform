@@ -31,6 +31,42 @@ body {
     padding: 2rem;
 }
 
+/* Nav Bar */
+.nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-color);
+    border-radius: 12px;
+    padding: 0.75rem 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.nav-brand {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--secondary-color);
+    letter-spacing: 0.02em;
+}
+
+.nav-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-auth {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 0.4rem 1rem;
+    font-size: 0.875rem;
+}
+
+.btn-auth:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
 /* Hero Section */
 .hero {
     text-align: center;
@@ -201,6 +237,55 @@ body {
     100% { opacity: 1; }
 }
 
+/* Dashboard Section */
+.dashboard-section {
+    margin-bottom: 3rem;
+    padding: 2rem;
+    background: var(--card-bg);
+    border-radius: 15px;
+    border: 1px solid var(--primary-color);
+}
+
+.dashboard-section h2 {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-color);
+    text-align: center;
+}
+
+.dashboard-card {
+    margin-top: 1.5rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.dashboard-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard-row:last-child {
+    border-bottom: none;
+}
+
+.dashboard-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-light);
+    min-width: 110px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dashboard-value {
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
 /* Architecture Section */
 .info-section {
     margin-bottom: 2rem;
@@ -306,6 +391,14 @@ body.dark-theme {
     --text-color: #f9fafb;
     --text-light: #d1d5db;
     --border-color: #4b5563;
+}
+
+body.dark-theme .nav-bar {
+    background: var(--card-bg);
+}
+
+body.dark-theme .dashboard-card {
+    background: #1f2937;
 }
 
 body.dark-theme .arch-step {

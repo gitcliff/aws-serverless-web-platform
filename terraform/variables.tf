@@ -85,12 +85,25 @@ variable "lambda_runtime" {
 variable "alert_email" {
   description = "Email address to receive CloudWatch alarm notifications"
   type        = string
+  default     = "gitacliff48@gmail.com"
 }
 
 variable "backup_retention_days" {
   description = "Number of days to retain DynamoDB backups (7 dev, 14 staging, 30 prod)"
   type        = number
   default     = 7
+}
+
+variable "cognito_callback_urls" {
+  description = "Allowed redirect URLs after Cognito login"
+  type        = list(string)
+  default     = ["https://cliffworld.link/callback"]
+}
+
+variable "cognito_logout_urls" {
+  description = "Allowed redirect URLs after Cognito logout"
+  type        = list(string)
+  default     = ["https://cliffworld.link"]
 }
 
 variable "cost_anomaly_threshold_percentage" {

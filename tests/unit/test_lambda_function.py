@@ -9,6 +9,18 @@ from moto import mock_aws
 TABLE_NAME = "test-visitor-counter"
 ALLOWED_ORIGIN = "https://cliffworld.link"
 
+VISITOR_EVENT = {"rawPath": "/api/visitor"}
+DASHBOARD_EVENT = {
+    "rawPath": "/api/dashboard",
+    "requestContext": {
+        "authorizer": {
+            "jwt": {
+                "claims": {"email": "test@example.com"}
+            }
+        }
+    },
+}
+
 
 @pytest.fixture(autouse=True)
 def aws_env(monkeypatch):
@@ -45,36 +57,38 @@ def handler(aws_env):
         yield lambda_function.lambda_handler
 
 
+# ── /api/visitor ──────────────────────────────────────────────────────────────
+
 def test_returns_200(handler):
-    response = handler({}, None)
+    response = handler(VISITOR_EVENT, None)
     assert response["statusCode"] == 200
 
 
 def test_first_visit_returns_one(handler):
-    response = handler({}, None)
+    response = handler(VISITOR_EVENT, None)
     body = json.loads(response["body"])
     assert body["visitor_count"] == 1
 
 
 def test_counter_increments_on_each_call(handler):
-    handler({}, None)
-    response = handler({}, None)
+    handler(VISITOR_EVENT, None)
+    response = handler(VISITOR_EVENT, None)
     body = json.loads(response["body"])
     assert body["visitor_count"] == 2
 
 
 def test_cors_header_matches_allowed_origin(handler):
-    response = handler({}, None)
+    response = handler(VISITOR_EVENT, None)
     assert response["headers"]["Access-Control-Allow-Origin"] == ALLOWED_ORIGIN
 
 
 def test_content_type_is_json(handler):
-    response = handler({}, None)
+    response = handler(VISITOR_EVENT, None)
     assert response["headers"]["Content-Type"] == "application/json"
 
 
 def test_response_body_has_visitor_count(handler):
-    response = handler({}, None)
+    response = handler(VISITOR_EVENT, None)
     body = json.loads(response["body"])
     assert "visitor_count" in body
     assert isinstance(body["visitor_count"], int)
@@ -91,7 +105,7 @@ def test_dynamodb_error_returns_500(aws_env):
         mock_table.update_item.side_effect = Exception("connection timeout")
 
         with patch.object(lambda_function, "table", mock_table):
-            response = lambda_function.lambda_handler({}, None)
+            response = lambda_function.lambda_handler(VISITOR_EVENT, None)
 
     assert response["statusCode"] == 500
     body = json.loads(response["body"])
@@ -110,7 +124,45 @@ def test_error_response_includes_cors_headers(aws_env):
         mock_table.update_item.side_effect = Exception("fail")
 
         with patch.object(lambda_function, "table", mock_table):
-            response = lambda_function.lambda_handler({}, None)
+            response = lambda_function.lambda_handler(VISITOR_EVENT, None)
 
     assert response["headers"]["Access-Control-Allow-Origin"] == ALLOWED_ORIGIN
     assert response["headers"]["Content-Type"] == "application/json"
+
+
+# ── /api/dashboard ────────────────────────────────────────────────────────────
+
+def test_dashboard_returns_200(handler):
+    response = handler(DASHBOARD_EVENT, None)
+    assert response["statusCode"] == 200
+
+
+def test_dashboard_returns_email_from_jwt_claims(handler):
+    response = handler(DASHBOARD_EVENT, None)
+    body = json.loads(response["body"])
+    assert body["email"] == "test@example.com"
+
+
+def test_dashboard_welcome_message_contains_email(handler):
+    response = handler(DASHBOARD_EVENT, None)
+    body = json.loads(response["body"])
+    assert "test@example.com" in body["message"]
+
+
+def test_dashboard_falls_back_to_unknown_when_claims_absent(handler):
+    event = {"rawPath": "/api/dashboard"}
+    response = handler(event, None)
+    body = json.loads(response["body"])
+    assert body["email"] == "unknown"
+
+
+# ── unknown path ──────────────────────────────────────────────────────────────
+
+def test_unknown_path_returns_404(handler):
+    response = handler({"rawPath": "/api/unknown"}, None)
+    assert response["statusCode"] == 404
+
+
+def test_missing_path_returns_404(handler):
+    response = handler({}, None)
+    assert response["statusCode"] == 404
