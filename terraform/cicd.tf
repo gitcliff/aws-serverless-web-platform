@@ -698,7 +698,6 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
       "cognito-idp:UpdateUserPoolClient",
       "cognito-idp:CreateUserPoolDomain",
       "cognito-idp:DeleteUserPoolDomain",
-      "cognito-idp:DescribeUserPoolDomain",
       "cognito-idp:GetUserPoolMfaConfig",
       "cognito-idp:ListTagsForResource",
       "cognito-idp:TagResource",
@@ -707,6 +706,16 @@ data "aws_iam_policy_document" "github_actions_permissions_infra" {
     resources = [
       "arn:aws:cognito-idp:${var.aws_region}:${data.aws_caller_identity.current.account_id}:userpool/*",
     ]
+  }
+
+  # DescribeUserPoolDomain does not support resource-level restrictions
+  statement {
+    sid    = "CognitoDescribeUserPoolDomain"
+    effect = "Allow"
+    actions = [
+      "cognito-idp:DescribeUserPoolDomain",
+    ]
+    resources = ["*"]
   }
 
   # Cost Explorer anomaly detection — resource-level restrictions not supported

@@ -85,7 +85,7 @@ variable "lambda_runtime" {
 variable "alert_email" {
   description = "Email address to receive CloudWatch alarm notifications"
   type        = string
-  default = "gitacliff48@gmail.com"
+  default     = "gitacliff48@gmail.com"
 }
 
 variable "backup_retention_days" {

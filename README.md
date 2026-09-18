@@ -38,7 +38,7 @@
 
 ## Architecture Diagram
 
-![AWS Serverless Web Platform — Production Architecture](./architecture.drawio.png)
+![AWS Serverless Web Platform — Production Architecture](./servless.drawio.png)
 
 ## Architecture Overview
 
@@ -55,15 +55,15 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │  CloudFront (PriceClass_100)  +  AWS WAF                                 │
 │  ┌─────────────────────────────────────────────────────────────────────┐ │
 │  │  WAF Rules                                                          │ │
-│  │  ├── IP Rate Limit: 300 req / 5 min / IP  (block)                  │ │
-│  │  └── AWS Managed Common Rule Set  (OWASP top 10)                   │ │
+│  │  ├── IP Rate Limit: 300 req / 5 min / IP  (block)                   │ │
+│  │  └── AWS Managed Common Rule Set  (OWASP top 10)                    │ │
 │  │  Response Headers Policy                                            │ │
-│  │  ├── HSTS  max-age=31536000, includeSubDomains, preload            │ │
+│  │  ├── HSTS  max-age=31536000, includeSubDomains, preload             │ │
 │  │  ├── CSP   default-src 'self'; strict script/connect policy         │ │
 │  │  ├── X-Frame-Options: DENY                                          │ │
 │  │  ├── X-Content-Type-Options: nosniff                                │ │
-│  │  ├── X-XSS-Protection: 1; mode=block                               │ │
-│  │  └── Permissions-Policy  (camera, mic, geo all disabled)           │ │
+│  │  ├── X-XSS-Protection: 1; mode=block                                │ │
+│  │  └── Permissions-Policy  (camera, mic, geo all disabled)            │ │
 │  └─────────────────────────────────────────────────────────────────────┘ │
 └──────────────┬────────────────────────────────────┬──────────────────────┘
                │ /  (static)                        │ /api/* (dynamic)
@@ -94,7 +94,7 @@ The application is structured as six discrete tiers. Each tier has a single resp
                                     ┌───────────────▼──────────────────────┐
                                     │  TIER 5 — DATA                       │
                                     │  DynamoDB  (on-demand)               │
-                                    │  ├── Atomic ADD (no race conditions)  │
+                                    │  ├── Atomic ADD (no race conditions) │
                                     │  ├── Encryption at rest (AES-256)    │
                                     │  └── Point-in-time recovery (PITR)   │
                                     └──────────────────────────────────────┘
@@ -107,7 +107,7 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │  TIER 7 — AUTHENTICATION                                                 │
 │  Amazon Cognito                                                          │
 │  ├── User Pool: email login, email verification, password policy         │
-│  ├── App Client: public SPA client, authorization code + PKCE           │
+│  ├── App Client: public SPA client, authorization code + PKCE            │
 │  ├── Hosted UI: https://{env}-cliffworld.auth.us-east-1.amazoncognito.com│
 │  └── JWT Authorizer wired to API Gateway for GET /api/dashboard          │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -119,41 +119,41 @@ The application is structured as six discrete tiers. Each tier has a single resp
 │                                                                          │
 │  Distributed Traces  ──────  AWS X-Ray                                   │
 │  ├── Lambda root segment (auto, Active mode)                             │
-│  └── DynamoDB subsegments (patch_all() via aws-xray-sdk)                │
+│  └── DynamoDB subsegments (patch_all() via aws-xray-sdk)                 │
 │                                                                          │
 │  Structured Logs  ─────────  CloudWatch Logs                             │
-│  ├── Lambda: JSON  {action, visitor_count, request_id, trace_id, env}   │
-│  ├── API Gateway: JSON access logs (requestId, ip, status, latency…)    │
+│  ├── Lambda: JSON  {action, visitor_count, request_id, trace_id, env}    │
+│  ├── API Gateway: JSON access logs (requestId, ip, status, latency…)     │
 │  ├── CloudFront: access logs → S3 (prefix: cloudfront/)                  │
-│  └── S3: server access logs → S3 (prefix: s3/)                          │
+│  └── S3: server access logs → S3 (prefix: s3/)                           │
 │                                                                          │
 │  Custom Metrics  ──────────  VisitorCounter/Application namespace        │
-│  └── VisitorCount (EMF — emitted from Lambda, no extra SDK)             │
+│  └── VisitorCount (EMF — emitted from Lambda, no extra SDK)              │
 │                                                                          │
-│  Alarms (11 total)  ───────  CloudWatch → SNS → Email                   │
+│  Alarms (11 total)  ───────  CloudWatch → SNS → Email                    │
 │  Cost       │ Anomaly Detection: overall account, ≥50% AND ≥$10 spend    │
-│  Perimeter  │ WAF blocked requests > 100 / 5 min                        │
-│  CDN        │ CloudFront 5xx rate > 1 %                                 │
-│             │ CloudFront 4xx rate > 5 %                                 │
-│             │ CloudFront origin latency > 800 ms                        │
-│  API        │ API Gateway 5xx errors > 5 / 5 min                       │
-│             │ API Gateway avg latency > 1 000 ms                        │
-│  Compute    │ Lambda errors > 5 / 5 min                                 │
-│             │ Lambda p95 duration > 3 000 ms                            │
-│  Data       │ DynamoDB system errors ≥ 1                                │
-│             │ DynamoDB UpdateItem avg latency > 50 ms                   │
-│  Synthetic  │ Canary SuccessPercent < 100 (every 5 min health check)    │
+│  Perimeter  │ WAF blocked requests > 100 / 5 min                         │
+│  CDN        │ CloudFront 5xx rate > 1 %                                  │
+│             │ CloudFront 4xx rate > 5 %                                  │
+│             │ CloudFront origin latency > 800 ms                         │
+│  API        │ API Gateway 5xx errors > 5 / 5 min                         │
+│             │ API Gateway avg latency > 1 000 ms                         │
+│  Compute    │ Lambda errors > 5 / 5 min                                  │
+│             │ Lambda p95 duration > 3 000 ms                             │
+│  Data       │ DynamoDB system errors ≥ 1                                 │
+│             │ DynamoDB UpdateItem avg latency > 50 ms                    │
+│  Synthetic  │ Canary SuccessPercent < 100 (every 5 min health check)     │
 │                                                                          │
-│  SLOs (composite)  ────────  CloudWatch Composite Alarms                │
+│  SLOs (composite)  ────────  CloudWatch Composite Alarms                 │
 │  ├── Availability SLO: API errors AND Lambda errors firing together      │
-│  └── Latency SLO:  p95 > 500 ms AND avg > 1 000 ms firing together     │
+│  └── Latency SLO:  p95 > 500 ms AND avg > 1 000 ms firing together       │
 │                                                                          │
 │  Synthetic Monitoring  ─────  CloudWatch Synthetics Canary               │
-│  └── NodeJS canary → GET /api/ → assert 200 + visitor_count number     │
+│  └── NodeJS canary → GET /api/ → assert 200 + visitor_count number       │
 │                                                                          │
-│  Dashboard  ───────────────  "Serverless-App-Operations"  (8 widgets)   │
-│  WAF blocks │ API errors │ Latency envelope │ Lambda perf               │
-│  Lambda p95 │ DynamoDB   │ CloudFront CDN   │ Business metrics          │
+│  Dashboard  ───────────────  "Serverless-App-Operations"  (8 widgets)    │
+│  WAF blocks │ API errors │ Latency envelope │ Lambda perf                │
+│  Lambda p95 │ DynamoDB   │ CloudFront CDN   │ Business metrics           │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
