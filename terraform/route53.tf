@@ -57,7 +57,7 @@ resource "aws_route53domains_domain" "demo_domain" {
 }
 
 resource "aws_route53_zone" "primary_zone" {
-  name    = aws_route53domains_domain.demo_domain.domain_name
+  name    = local.domain_name
   comment = "Managed by cliff"
 }
 
